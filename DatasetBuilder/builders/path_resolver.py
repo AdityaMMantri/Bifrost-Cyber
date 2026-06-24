@@ -16,7 +16,6 @@ without requiring metadata changes.
 """
 
 from pathlib import Path
-
 from builders.models import ResolvedFile
 
 
@@ -26,24 +25,11 @@ class PathResolver:
 
         self.logger = logger
 
-    # ======================================================
     # Public API
-    # ======================================================
 
-    def resolve_files(
-
-        self,
-
-        scenario_root: Path,
-
-        relevant_files,
-
-        noise_files
-
-    ):
+    def resolve_files(self,scenario_root: Path,relevant_files,noise_files):
 
         resolved = []
-
         self.logger.title("Resolving Source Files")
 
         # -------------------------
@@ -86,11 +72,7 @@ class PathResolver:
 
             )
 
-        self.logger.success(
-
-            f"Resolved {len(resolved)} files."
-
-        )
+        self.logger.success(f"Resolved {len(resolved)} files.")
 
         return resolved
 
@@ -98,20 +80,9 @@ class PathResolver:
     # Resolve One File
     # ======================================================
 
-    def _resolve(
-
-        self,
-
-        scenario_root: Path,
-
-        metadata_path: str,
-
-        file_type: str
-
-    ):
+    def _resolve(self,scenario_root: Path,metadata_path: str,file_type: str):
 
         normalized = metadata_path.replace("\\", "/")
-
         normalized = normalized.lstrip("/")
 
         # -----------------------------------------
@@ -177,3 +148,35 @@ class PathResolver:
             file_type=file_type
 
         )
+# Gets the file paths from metadata.json.
+# Example:
+# "security/Auth.py"
+# "README.md"
+
+# Loops through all relevant and noise files.
+
+# Cleans the file path.
+# Example:
+# "security\\Auth.py" -> "security/Auth.py"
+
+# Tries different possible file locations.
+# Example:
+# Scenario021/security/Auth.py
+# Scenario021/files/security/Auth.py
+
+# Finds the file if it exists.
+# Stops the builder if the file cannot be found.
+
+# Creates a ResolvedFile object.
+# Example:
+# ResolvedFile(
+#   relative_path="security/Auth.py",
+#   absolute_path="D:/Dataset/Scenario021/files/security/Auth.py",
+#   file_type="relevant"
+# )
+
+# Prints the resolved file.
+# Example:
+# [RELEVANT] security/Auth.py
+
+# Returns all ResolvedFile objects to the CodeLoader.

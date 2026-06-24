@@ -22,73 +22,32 @@ from utils.random_utils import RandomUtils
 
 class PromptBuilder:
 
-    def __init__(
-
-        self,
-
-        system_prompt_path: Path,
-
-        template_directory: Path,
-
-        logger
-
-    ):
+    def __init__(self,system_prompt_path: Path,template_directory: Path,logger):
 
         self.logger = logger
-
         self.random = RandomUtils()
-
-        self.system_prompt = FileUtils.read_text(
-            system_prompt_path
-        )
-
-        self.templates = sorted(
-            template_directory.glob("*.txt")
-        )
+        self.system_prompt = FileUtils.read_text(system_prompt_path)
+        self.templates = sorted(template_directory.glob("*.txt"))
 
         if not self.templates:
 
-            raise RuntimeError(
-                "No prompt templates found."
-            )
+            raise RuntimeError("No prompt templates found.")
 
-    # =====================================================
     # Build Prompt
-    # =====================================================
 
-    def build(
-
-        self,
-
-        scenario,
-
-        code_files,
-
-        question
-
-    ) -> Prompt:
+    def build(self,scenario,code_files,question) -> Prompt:
 
         self.logger.title("Building Prompt")
 
-        template_path = self.random.choice(
-            self.templates
-        )
+        template_path = self.random.choice(self.templates)
 
-        self.logger.info(
-            f"Template : {template_path.name}"
-        )
+        self.logger.info(f"Template : {template_path.name}")
 
-        template = FileUtils.read_text(
-            template_path
-        )
+        template = FileUtils.read_text(template_path)
 
-        scenario_text = self._build_scenario_text(
-            scenario
-        )
+        scenario_text = self._build_scenario_text(scenario)
 
-        source_code = self._build_source_code(
-            code_files
-        )
+        source_code = self._build_source_code(code_files)
 
         prompt = template
 
@@ -127,17 +86,9 @@ class PromptBuilder:
 
         )
 
-    # =====================================================
     # Scenario Formatting
-    # =====================================================
 
-    def _build_scenario_text(
-
-        self,
-
-        scenario
-
-    ):
+    def _build_scenario_text(self,scenario):
 
         output = []
         output.append(f"Application ID: {scenario.scenario_name}")
@@ -155,37 +106,13 @@ class PromptBuilder:
 
         return "\n".join(output)
 
-    # =====================================================
     # Source Code Formatting
-    # =====================================================
 
-    def _build_source_code(
+    def _build_source_code(self,code_files):
 
-        self,
+        relevant = [file for file in code_files if file.file_type == "relevant"]
 
-        code_files
-
-    ):
-
-        relevant = [
-
-            file
-
-            for file in code_files
-
-            if file.file_type == "relevant"
-
-        ]
-
-        noise = [
-
-            file
-
-            for file in code_files
-
-            if file.file_type == "noise"
-
-        ]
+        noise = [file for file in code_files if file.file_type == "noise"]
 
         ordered = relevant + noise
 
@@ -193,9 +120,7 @@ class PromptBuilder:
 
         for file in ordered:
 
-            output.append(
-                f"## FILE: {file.relative_path}"
-            )
+            output.append(f"## FILE: {file.relative_path}")
 
             output.append("")
 
@@ -208,3 +133,46 @@ class PromptBuilder:
             output.append("")
 
         return "\n".join(output)
+
+# Loads the system prompt and all prompt templates.
+# Example:
+# system_prompt.txt
+# template_1.txt
+# template_2.txt
+
+# Randomly selects one prompt template.
+# Example:
+# template_2.txt
+
+# Builds the scenario text.
+# Example:
+# Application ID: Scenario021
+# ## Scenario
+# ...
+
+# Includes only safe sections from scenario.md.
+# Example:
+# Scenario, Goal (Hidden sections are skipped)
+
+# Formats all source code files.
+# Example:
+# ## FILE: security/Auth.py
+# class Auth:
+#     ...
+
+# Places relevant files first, then noise files.
+
+# Replaces the template placeholders.
+# Example:
+# {{SCENARIO}} -> formatted scenario
+# {{SOURCE_CODE}} -> formatted code
+# {{QUESTION}} -> "Find all vulnerabilities."
+
+# Creates a Prompt object.
+# Example:
+# Prompt(
+#   system="You are a security expert...",
+#   user="Application ID...\nCode...\nQuestion..."
+# )
+
+# Returns the Prompt object to the JSONLWriter.

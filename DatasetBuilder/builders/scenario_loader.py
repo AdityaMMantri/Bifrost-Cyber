@@ -20,16 +20,13 @@ from pathlib import Path
 from builders.models import Scenario
 from utils.file_utils import FileUtils
 
-
 class ScenarioLoader:
 
     def __init__(self, logger):
 
         self.logger = logger
 
-    # ==========================================================
     # Public API
-    # ==========================================================
 
     def load(self, scenario_path: Path) -> Scenario:
 
@@ -39,63 +36,45 @@ class ScenarioLoader:
 
         if not scenario_path.exists():
 
-            raise FileNotFoundError(
-
-                f"\nscenario.md not found:\n{scenario_path}"
-
-            )
+            raise FileNotFoundError(f"\nscenario.md not found:\n{scenario_path}")
 
         markdown = FileUtils.read_text(scenario_path)
 
         sections = self._parse_sections(markdown)
 
         scenario = Scenario(
-
             scenario_name=scenario_path.parent.name,
-
             raw_markdown=markdown,
-
             sections=sections
-
         )
 
         self._print_summary(scenario)
 
         return scenario
 
-    # ==========================================================
     # Generic Markdown Parser
-    # ==========================================================
 
     def _parse_sections(self, markdown):
 
         sections = {}
-
         current_heading = None
-
         buffer = []
-
         inside_code_block = False
 
         for line in markdown.splitlines():
 
             stripped = line.strip()
 
-            # --------------------------------------------------
             # Toggle fenced code block
-            # --------------------------------------------------
 
             if stripped.startswith("```"):
 
                 inside_code_block = not inside_code_block
-
                 buffer.append(line)
 
                 continue
 
-            # --------------------------------------------------
             # Ignore heading detection inside code blocks
-            # --------------------------------------------------
 
             if not inside_code_block:
 
@@ -104,13 +83,9 @@ class ScenarioLoader:
                 if stripped.startswith("#"):
 
                     self._save_section(
-
                         sections,
-
                         current_heading,
-
                         buffer
-
                     )
 
                     current_heading = stripped.lstrip("#").strip()
@@ -135,13 +110,9 @@ class ScenarioLoader:
                 ):
 
                     self._save_section(
-
                         sections,
-
                         current_heading,
-
                         buffer
-
                     )
 
                     current_heading = stripped[:-1].strip()
@@ -153,32 +124,16 @@ class ScenarioLoader:
             buffer.append(line)
 
         self._save_section(
-
             sections,
-
             current_heading,
-
             buffer
-
         )
 
         return sections
 
-    # ==========================================================
     # Helpers
-    # ==========================================================
 
-    def _save_section(
-
-        self,
-
-        sections,
-
-        heading,
-
-        buffer
-
-    ):
+    def _save_section(self,sections,heading,buffer):
 
         if heading is None:
 
@@ -190,11 +145,7 @@ class ScenarioLoader:
 
             return
 
-        heading = " ".join(
-
-            heading.split()
-
-        )
+        heading = " ".join(heading.split())
 
         sections[heading] = text
 
@@ -204,34 +155,52 @@ class ScenarioLoader:
 
     def _print_summary(self, scenario):
 
-        self.logger.success(
-
-            "Scenario Loaded Successfully"
-
-        )
-
-        self.logger.info(
-
-            f"Scenario : {scenario.scenario_name}"
-
-        )
-
-        self.logger.info(
-
-            f"Sections Found : {len(scenario.sections)}"
-
-        )
+        self.logger.success("Scenario Loaded Successfully")
+        self.logger.info(f"Scenario : {scenario.scenario_name}")
+        self.logger.info(f"Sections Found : {len(scenario.sections)}")
 
         for heading in scenario.sections:
 
-            self.logger.info(
+            self.logger.info(f"  • {heading}")
 
-                f"  • {heading}"
+        self.logger.info(f"Markdown Length : {len(scenario.raw_markdown)} characters")
 
-            )
+# Reads scenario.md.
+# Example:
+# Scenario021/scenario.md
 
-        self.logger.info(
+# Checks that scenario.md exists.
+# Stops the builder if it is missing.
+# Reads the markdown file.
+# Loops through the markdown line by line.
 
-            f"Markdown Length : {len(scenario.raw_markdown)} characters"
+# Finds section headings.
+# Example:
+# # Scenario
+# ## Goal
+# Description:
 
-        )
+# Collects all text under each heading.
+
+# Ignores headings inside code blocks.
+# Example:
+# ```python
+# # Not a markdown heading
+# ```
+
+# Creates a dictionary of sections.
+# Example:
+# {
+#   "Scenario": "...",
+#   "Goal": "..."
+# }
+
+# Creates a Scenario object.
+# Example:
+# Scenario(
+#   scenario_name="Scenario021",
+#   sections={...}
+# )
+
+# Prints a summary of the loaded scenario.
+# Returns the Scenario object to the PromptBuilder.
