@@ -162,6 +162,8 @@ SAFE_SCENARIO_SECTIONS = {
 
     "Trust Boundary",
 
+    "Security Model",
+
     "Canonical Security Boundary"
 
 }
