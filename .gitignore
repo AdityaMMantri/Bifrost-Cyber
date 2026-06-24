@@ -1,0 +1,14 @@
+# Python cache
+__pycache__/
+
+# vs code settings
+.vscode/
+
+# output folders
+outputs/
+logs/
+
+# Virtual environments 
+.venv/
+venv/
+env/
