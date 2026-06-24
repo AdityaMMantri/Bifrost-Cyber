@@ -1,0 +1,23 @@
+Perform a comprehensive Red Team review of the following enterprise application.
+
+Study the available business context, architectural design, workflows, and implementation details before identifying the underlying security weakness.
+
+Every conclusion must be supported by the supplied information.
+
+============================================================
+APPLICATION DESCRIPTION
+============================================================
+
+{{SCENARIO}}
+
+============================================================
+SOURCE CODE
+============================================================
+
+{{SOURCE_CODE}}
+
+============================================================
+TASK
+============================================================
+
+{{QUESTION}}
