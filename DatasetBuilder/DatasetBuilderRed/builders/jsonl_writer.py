@@ -1,0 +1,173 @@
+"""
+jsonl_writer.py
+
+Writes training examples into train_red.jsonl.
+
+Also creates debug prompt files that contain the exact
+conversation shown to the model.
+"""
+
+import json
+from pathlib import Path
+
+from config import *
+
+class JSONLWriter:
+
+    def __init__(self):
+
+        OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
+        DEBUG_DIR.mkdir(parents=True, exist_ok=True)
+
+    # --------------------------------------------------------
+
+    def write_example(self,jsonl_path: Path,scenario_name: str,example_name: str,prompt,assistant):
+
+        training_example = {
+
+            # ------------------------------------------------
+            # Metadata (ignored during training but useful for
+            # splitting, evaluation and analysis)
+            # ------------------------------------------------
+
+            "scenario_id": scenario_name,
+
+            "example_id": example_name,
+
+            # ------------------------------------------------
+
+            "messages": [
+
+                {
+
+                    "role": "system",
+
+                    "content": prompt.system
+
+                },
+
+                {
+
+                    "role": "user",
+
+                    "content": prompt.user
+
+                },
+
+                {
+
+                    "role": "assistant",
+
+                    "content": assistant
+
+                }
+
+            ]
+
+        }
+
+        with open(jsonl_path,"a",encoding="utf-8") as f:
+            json.dump(training_example,f,ensure_ascii=False)
+            f.write("\n")
+
+        print(f"✓ JSONL Written : {scenario_name} ({example_name})")
+
+        if SAVE_DEBUG_PROMPTS:
+
+            self._save_debug_prompt(
+                scenario_name,
+                example_name,
+                prompt,
+                assistant
+            )
+
+    # --------------------------------------------------------
+
+    def _save_debug_prompt(self,scenario_name,example_name,prompt,assistant):
+
+        debug_file = (DEBUG_DIR / f"{scenario_name}_{example_name}.txt")
+
+        with open(debug_file,"w",encoding="utf-8") as f:
+
+            f.write("=" * 80)
+
+            f.write("\nSYSTEM\n")
+
+            f.write("=" * 80)
+
+            f.write("\n\n")
+
+            f.write(prompt.system)
+
+            f.write("\n\n")
+
+            f.write("=" * 80)
+
+            f.write("\nUSER\n")
+
+            f.write("=" * 80)
+
+            f.write("\n\n")
+
+            f.write(prompt.user)
+
+            f.write("\n\n")
+
+            f.write("=" * 80)
+
+            f.write("\nASSISTANT\n")
+
+            f.write("=" * 80)
+
+            f.write("\n\n")
+
+            f.write(assistant)
+
+        print(f"✓ Debug Prompt Saved : {debug_file.name}")
+
+# Creates the output folders if they don't already exist.
+# Example:
+# output/
+# debug/
+
+# Receives one complete training example.
+# Example:
+# Scenario021 + red_001 + Prompt + Assistant Response
+
+# Creates a dictionary in chat format.
+# Example:
+# {
+#   "scenario_id": "Scenario021",
+#   "example_id": "red_001",
+#   "messages": [
+#       {"role":"system","content":"You are a security expert..."},
+#       {"role":"user","content":"Analyze the following repository..."},
+#       {"role":"assistant","content":"The vulnerability is..."}
+#   ]
+# }
+
+# Opens train_red.jsonl in append mode ("a"),
+# so new examples are added instead of replacing old ones.
+
+# Converts the dictionary into JSON and writes one line to train_red.jsonl.
+# Example:
+# {"scenario_id":"Scenario021","messages":[...]}
+
+# If debug prompts are enabled, creates a readable .txt file.
+# Example:
+# debug/
+# └── Scenario021_red_001.txt
+
+# The debug file contains the exact conversation.
+# Example:
+# ======================
+# SYSTEM
+# You are a security expert...
+#
+# USER
+# Analyze the following repository...
+#
+# ASSISTANT
+# The vulnerability is...
+#
+# ======================

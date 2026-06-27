@@ -1,26 +1,26 @@
 """
 config.py
 
-Global configuration for the Red JSONL Dataset Builder.
+Global configuration for the Blue JSONL Dataset Builder.
 Only edit values in this file.
 """
 
 from pathlib import Path
 
 PROJECT_ROOT = Path(r"F:\Capstone")
-DATASET_ROOT = PROJECT_ROOT / "SFT"/ "SFT_Dataset"
+DATASET_ROOT = PROJECT_ROOT / "SFT" / "SFT_Dataset"
 
 # ==========================================================
 # OUTPUT DIRECTORIES
 # ==========================================================
 
-BUILDER_ROOT = PROJECT_ROOT / "DatasetBuilder"
+BUILDER_ROOT = PROJECT_ROOT / "DatasetBuilder" /"DatasetBuilderBlue"
 OUTPUT_DIR = BUILDER_ROOT / "outputs"
 DEBUG_DIR = OUTPUT_DIR / "debug"
 REPORT_DIR = OUTPUT_DIR / "reports"
 LOG_DIR = BUILDER_ROOT / "logs"
-TRAIN_JSONL = OUTPUT_DIR / "train_red.jsonl"
-#VALIDATION_JSONL = OUTPUT_DIR / "validation_red.jsonl"
+TRAIN_JSONL = OUTPUT_DIR / "train_blue.jsonl"
+#VALIDATION_JSONL = OUTPUT_DIR / "validation_blue.jsonl"
 
 # ==========================================================
 # DATASET SELECTION
@@ -29,7 +29,7 @@ TRAIN_JSONL = OUTPUT_DIR / "train_red.jsonl"
 # True -> Process every scenario in SFT_Dataset
 BUILD_ALL_SCENARIOS = True
 
-# Used only when BUILD_ALL_SCENARIOS = False, useful for testing 
+# Used only when BUILD_ALL_SCENARIOS = False, useful for testing
 SCENARIOS_TO_BUILD = []
 
 # ==========================================================
@@ -138,7 +138,7 @@ HEADER_QUESTION = "QUESTION"
 # BUILDER INFORMATION
 # ==========================================================
 
-BUILDER_NAME = "Red JSONL Dataset Builder"
+BUILDER_NAME = "Blue JSONL Dataset Builder"
 
 BUILDER_VERSION = "1.0.0"
 

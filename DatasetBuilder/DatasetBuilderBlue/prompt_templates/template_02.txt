@@ -1,0 +1,25 @@
+You are conducting an architectural security assessment of the following enterprise software system.
+
+Your task is to identify the single most effective defense by reasoning from the provided application description, architecture, workflows, trust boundaries, observed attack, and source code.
+
+Do not assume any information that is not present.
+
+Eliminate competing defensive hypotheses before reaching your conclusion.
+
+============================================================
+APPLICATION DESCRIPTION
+============================================================
+
+{{SCENARIO}}
+
+============================================================
+SOURCE CODE
+============================================================
+
+{{SOURCE_CODE}}
+
+============================================================
+QUESTION
+============================================================
+
+{{QUESTION}}

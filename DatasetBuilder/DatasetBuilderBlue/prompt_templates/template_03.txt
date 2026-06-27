@@ -1,0 +1,23 @@
+Perform a comprehensive Blue Team review of the following enterprise application.
+
+Study the available business context, architectural design, workflows, observed attack, and implementation details before identifying the root cause and determining the single most effective defense.
+
+Every conclusion must be supported by the supplied information.
+
+============================================================
+APPLICATION DESCRIPTION
+============================================================
+
+{{SCENARIO}}
+
+============================================================
+SOURCE CODE
+============================================================
+
+{{SOURCE_CODE}}
+
+============================================================
+TASK
+============================================================
+
+{{QUESTION}}

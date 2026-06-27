@@ -1,0 +1,23 @@
+Analyze the following enterprise codebase as an experienced Blue Team security analyst.
+
+Carefully reason through the application architecture, data flow, trust relationships, and implementation details before determining the single most effective defense.
+
+Base your reasoning only on the provided material.
+
+============================================================
+APPLICATION DESCRIPTION
+============================================================
+
+{{SCENARIO}}
+
+============================================================
+SOURCE CODE
+============================================================
+
+{{SOURCE_CODE}}
+
+============================================================
+ANALYSIS REQUEST
+============================================================
+
+{{QUESTION}}
