@@ -1,0 +1,21 @@
+{
+    "training_loss": 1.479042723065331,
+    "validation": {
+        "defense_accuracy": 0.14545454545454545,
+        "reasoning_similarity": 0.8099676966667175,
+        "wrong_actions_accuracy": 0.09090909090909091,
+        "wrong_action_reasoning_similarity": 0.3817645013332367,
+        "exact_match": 0.0,
+        "structure_score": 0.8727272727272727,
+        "average_latency": 66.41053599010814
+    },
+    "test": {
+        "defense_accuracy": 0.10714285714285714,
+        "reasoning_similarity": 0.8089722394943237,
+        "wrong_actions_accuracy": 0.03571428571428571,
+        "wrong_action_reasoning_similarity": 0.3871946632862091,
+        "exact_match": 0.0,
+        "structure_score": 0.9642857142857143,
+        "average_latency": 61.41119801572391
+    }
+}
