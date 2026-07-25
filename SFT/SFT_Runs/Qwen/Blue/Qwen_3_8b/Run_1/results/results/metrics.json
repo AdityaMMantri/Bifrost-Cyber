@@ -1,0 +1,13 @@
+{
+    "training_loss": 1.4790328230176653,
+    "validation": {
+        "defense_accuracy": 0.14545454545454545,
+        "bert_f1": 0.856380820274353,
+        "structure_accuracy": 1.0
+    },
+    "test": {
+        "defense_accuracy": 0.10714285714285714,
+        "bert_f1": 0.8551878333091736,
+        "structure_accuracy": 1.0
+    }
+}

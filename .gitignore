@@ -1,14 +1,14 @@
 # Python cache
 __pycache__/
 
-# vs code settings
+# VS Code
 .vscode/
 
-# output folders
+# Output folders
 outputs/
 logs/
 
-# Virtual environments 
+# Virtual environments
 .venv/
 venv/
 env/
@@ -19,4 +19,15 @@ SFT/SFT_Rules
 
 attacks.txt
 
-results/
+**/results/*
+
+!**/results/results/
+!**/results/results/**
+
+!**/results/__results___files/
+!**/results/__results___files/**
+
+**/results/huggingface_tokenizers_cache/
+**/results/unsloth_compiled_cache/
+**/results/outputs/
+**/results/__huggingface_repos__/
