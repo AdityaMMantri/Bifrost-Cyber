@@ -1,0 +1,45 @@
+Analyze the following software implementation for security
+vulnerabilities.
+
+============================================================
+APPLICATION CONTEXT
+============================================================
+
+{{SCENARIO}}
+
+============================================================
+SOURCE CODE
+============================================================
+
+{{SOURCE_CODE}}
+
+============================================================
+CLASSIFICATION TASK
+============================================================
+
+Determine whether the supplied implementation contains a
+security vulnerability.
+
+Classify the implementation as exactly one of:
+
+1 = VULNERABLE
+0 = NOT VULNERABLE
+
+Use the application context to understand the intended
+behavior and security boundaries of the implementation.
+
+Base the classification on concrete evidence in the supplied
+source code.
+
+When the vulnerability depends on interactions between
+multiple files, consider the relevant cross-file data flow.
+
+Do not assume undocumented behavior or invent missing code.
+
+Return only the classification label:
+
+1
+
+or
+
+0
