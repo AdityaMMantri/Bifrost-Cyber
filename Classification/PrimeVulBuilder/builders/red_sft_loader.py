@@ -3,7 +3,7 @@ import re
 from pathlib import Path
 from typing import Any, Optional
 
-from .models import RedExample
+from .models import RedSFTExample
 
 
 class RedSFTLoader:
@@ -159,7 +159,7 @@ class RedSFTLoader:
     def load(
         self,
         red_sft_path: Path,
-    ) -> list[RedExample]:
+    ) -> list[RedSFTExample]:
         """
         Load and validate all Red SFT examples from red_sft.json.
         """
@@ -254,7 +254,7 @@ class RedSFTLoader:
     def _parse_examples(
         self,
         data: Any,
-    ) -> list[RedExample]:
+    ) -> list[RedSFTExample]:
         """
         Parse the Red SFT JSON structure.
 
@@ -351,7 +351,7 @@ class RedSFTLoader:
                 )
             )
 
-            example = RedExample(
+            example = RedSFTExample(
                 example_id=str(index),
                 question=question,
                 answer=assistant_content,
@@ -698,7 +698,7 @@ class RedSFTLoader:
 
     def _validate_attack_consistency(
         self,
-        examples: list[RedExample],
+        examples: list[RedSFTExample],
         red_sft_path: Path,
     ) -> None:
         """
@@ -815,7 +815,7 @@ class RedSFTLoader:
 
     def _log_attack_summary(
         self,
-        examples: list[RedExample],
+        examples: list[RedSFTExample],
     ) -> None:
         """
         Log a readable summary without exposing Red reasoning.
@@ -855,7 +855,7 @@ class RedSFTLoader:
 
     def get_common_attack(
         self,
-        examples: list[RedExample],
+        examples: list[RedSFTExample],
     ) -> Optional[str]:
         """
         Return the attack label when there is exactly ONE unique
@@ -961,7 +961,7 @@ class RedSFTLoader:
 
     def get_all_attacks(
         self,
-        examples: list[RedExample],
+        examples: list[RedSFTExample],
     ) -> list[str]:
         """
         Return all unique attack labels, including "none".
@@ -1002,7 +1002,7 @@ class RedSFTLoader:
 
     def get_positive_attacks(
         self,
-        examples: list[RedExample],
+        examples: list[RedSFTExample],
     ) -> list[str]:
         """
         Return all unique positive/non-"none" attack labels.
@@ -1036,7 +1036,7 @@ class RedSFTLoader:
 
     def get_unique_positive_attacks(
         self,
-        examples: list[RedExample],
+        examples: list[RedSFTExample],
     ) -> list[str]:
         """
         Return unique positive attack labels using normalized
@@ -1076,7 +1076,7 @@ class RedSFTLoader:
 
     def get_attack(
         self,
-        examples: list[RedExample],
+        examples: list[RedSFTExample],
     ) -> str:
         """
         Return the Red SFT attack when there is exactly one
@@ -1125,7 +1125,7 @@ class RedSFTLoader:
 
     def get_all_reasoning(
         self,
-        examples: list[RedExample],
+        examples: list[RedSFTExample],
     ) -> list[str]:
         """
         Return all available Red reasoning blocks.
@@ -1147,7 +1147,7 @@ class RedSFTLoader:
 
     def get_all_wrong_actions(
         self,
-        examples: list[RedExample],
+        examples: list[RedSFTExample],
     ) -> list[str]:
         """
         Return the unique union of wrong actions across
@@ -1175,7 +1175,7 @@ class RedSFTLoader:
 
     def validate_against_attack(
         self,
-        examples: list[RedExample],
+        examples: list[RedSFTExample],
         expected_attack: Optional[str],
     ) -> bool:
         """
@@ -1251,8 +1251,8 @@ class RedSFTLoader:
 
     def get_negative_examples(
         self,
-        examples: list[RedExample],
-    ) -> list[RedExample]:
+        examples: list[RedSFTExample],
+    ) -> list[RedSFTExample]:
         """
         Return Red SFT examples whose attack label is "none"
         or another recognized negative state.
@@ -1272,8 +1272,8 @@ class RedSFTLoader:
 
     def get_positive_examples(
         self,
-        examples: list[RedExample],
-    ) -> list[RedExample]:
+        examples: list[RedSFTExample],
+    ) -> list[RedSFTExample]:
         """
         Return Red SFT examples containing actual attack labels.
         """
@@ -1292,7 +1292,7 @@ class RedSFTLoader:
 
     def summary(
         self,
-        examples: list[RedExample],
+        examples: list[RedSFTExample],
     ) -> dict:
         """
         Produce a compact internal summary.

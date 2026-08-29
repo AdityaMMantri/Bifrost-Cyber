@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from pathlib import Path
 
 from .models import CodeFile, ResolvedFile
@@ -5,82 +7,21 @@ from .models import CodeFile, ResolvedFile
 
 class CodeLoader:
     """
-    Loads source-code contents from resolved files.
+    Loads files already resolved by PathResolver.
 
-    Responsibilities:
-        - Read resolved source files
-        - Preserve their relative paths
-        - Detect basic file type
-        - Calculate line/character statistics
-        - Return CodeFile objects
+    CodeLoader does NOT decide whether a file is code,
+    relevant, or noise.
 
-    The loader does not decide which files are relevant.
-    That decision has already been made by metadata_loader.py
-    and path_resolver.py.
+    PathResolver has already made that decision.
+
+    Every ResolvedFile supplied here is loaded.
     """
-
-    # ============================================================
-    # Supported source-code extensions
-    # ============================================================
-
-    SOURCE_EXTENSIONS = {
-        ".py",
-        ".js",
-        ".jsx",
-        ".ts",
-        ".tsx",
-        ".java",
-        ".c",
-        ".h",
-        ".cpp",
-        ".cc",
-        ".cxx",
-        ".hpp",
-        ".cs",
-        ".go",
-        ".rs",
-        ".php",
-        ".rb",
-        ".swift",
-        ".kt",
-        ".kts",
-        ".scala",
-        ".sh",
-        ".bash",
-        ".sql",
-        ".html",
-        ".htm",
-        ".css",
-        ".scss",
-        ".vue",
-        ".dart",
-        ".ex",
-        ".exs",
-        ".erl",
-        ".hrl",
-    }
 
     def __init__(
         self,
         logger=None,
         max_file_size: int | None = None,
     ):
-        """
-        Parameters
-        ----------
-        logger:
-            Optional Logger instance.
-
-        max_file_size:
-            Optional maximum file size in bytes.
-
-            None means no artificial limit.
-
-            For this benchmark, keeping it None is recommended
-            initially so that source code is not silently
-            truncated.
-        """
-
         self.logger = logger
         self.max_file_size = max_file_size
 
@@ -88,22 +29,24 @@ class CodeLoader:
     # PUBLIC API
     # ============================================================
 
+    def load(
+        self,
+        resolved_files: list[ResolvedFile],
+    ) -> list[CodeFile]:
+        """
+        Load every resolved file.
+
+        No extension filtering is performed.
+        """
+
+        return self.load_files(resolved_files)
+
     def load_files(
         self,
         resolved_files: list[ResolvedFile],
     ) -> list[CodeFile]:
         """
-        Load all resolved files.
-
-        Parameters
-        ----------
-        resolved_files:
-            Files returned by PathResolver.
-
-        Returns
-        -------
-        list[CodeFile]
-            Loaded source-code objects.
+        Load all files supplied by PathResolver.
         """
 
         if not resolved_files:
@@ -111,19 +54,15 @@ class CodeLoader:
                 "No resolved files were provided to CodeLoader."
             )
 
-        code_files = []
+        code_files: list[CodeFile] = []
 
         for resolved_file in resolved_files:
-
-            code_file = self.load_file(
-                resolved_file
-            )
-
+            code_file = self.load_file(resolved_file)
             code_files.append(code_file)
 
         if self.logger:
-            self.logger.files_loaded(
-                len(code_files)
+            self.logger.info(
+                f"Loaded {len(code_files)} source file(s)"
             )
 
         return code_files
@@ -137,10 +76,19 @@ class CodeLoader:
         resolved_file: ResolvedFile,
     ) -> CodeFile:
         """
-        Read one resolved source file.
+        Load one resolved file.
+
+        The file_type assigned by PathResolver is preserved.
         """
 
-        path = resolved_file.absolute_path
+        if resolved_file is None:
+            raise ValueError(
+                "ResolvedFile cannot be None."
+            )
+
+        path = Path(
+            resolved_file.absolute_path
+        )
 
         if not path.exists():
             raise FileNotFoundError(
@@ -153,7 +101,7 @@ class CodeLoader:
             )
 
         # --------------------------------------------------------
-        # Optional file-size guard
+        # Optional size guard
         # --------------------------------------------------------
 
         if self.max_file_size is not None:
@@ -169,7 +117,7 @@ class CodeLoader:
                 )
 
         # --------------------------------------------------------
-        # Read source
+        # Read file
         # --------------------------------------------------------
 
         content = self._read_text(path)
@@ -186,11 +134,20 @@ class CodeLoader:
 
         character_count = len(content)
 
-        file_type = (
-            resolved_file.file_type
-            if resolved_file.file_type != "unknown"
-            else self._detect_file_type(path)
-        )
+        # --------------------------------------------------------
+        # IMPORTANT:
+        #
+        # Do NOT determine file type from extension.
+        #
+        # PathResolver already assigned:
+        #
+        #     relevant
+        #     noise
+        #
+        # Preserve that value.
+        # --------------------------------------------------------
+
+        file_type = resolved_file.file_type
 
         code_file = CodeFile(
             relative_path=resolved_file.relative_path,
@@ -205,6 +162,7 @@ class CodeLoader:
             self.logger.debug(
                 f"Loaded source file: "
                 f"{resolved_file.relative_path} "
+                f"[{file_type}] "
                 f"({line_count:,} lines, "
                 f"{character_count:,} characters)"
             )
@@ -220,10 +178,9 @@ class CodeLoader:
         path: Path,
     ) -> str:
         """
-        Read a source file as UTF-8 text.
+        Read a codebase file as text.
 
-        A small fallback is provided for legacy files that may
-        contain Windows/legacy encoded characters.
+        No extension-based decisions are made.
         """
 
         try:
@@ -257,29 +214,6 @@ class CodeLoader:
             ) from exc
 
     # ============================================================
-    # FILE TYPE
-    # ============================================================
-
-    def _detect_file_type(
-        self,
-        path: Path,
-    ) -> str:
-        """
-        Determine whether a file is a known source-code type.
-
-        Returns:
-            "source"
-            "unknown"
-        """
-
-        suffix = path.suffix.lower()
-
-        if suffix in self.SOURCE_EXTENSIONS:
-            return "source"
-
-        return "unknown"
-
-    # ============================================================
     # CODE FORMATTING
     # ============================================================
 
@@ -288,18 +222,11 @@ class CodeLoader:
         code_files: list[CodeFile],
     ) -> str:
         """
-        Combine multiple CodeFile objects into the source-code
-        block used by prompt_template.txt.
+        Combine all loaded files into the source-code block.
 
-        Example:
-
-            ## FILE: backend/routes/imports.js
-
-            <source code>
-
-            ## FILE: processor/report_loader.py
-
-            <source code>
+        Relevant and noise files are intentionally formatted
+        identically. The model is not told which files are
+        relevant and which are distractors.
         """
 
         if not code_files:
@@ -307,12 +234,13 @@ class CodeLoader:
                 "Cannot format an empty code-file list."
             )
 
-        blocks = []
+        blocks: list[str] = []
 
         for code_file in code_files:
 
             blocks.append(
-                f"## FILE: {code_file.relative_path}\n\n"
+                f"## FILE: "
+                f"{code_file.relative_path}\n\n"
                 f"{code_file.content}"
             )
 
@@ -326,10 +254,6 @@ class CodeLoader:
         self,
         code_files: list[CodeFile],
     ) -> int:
-        """
-        Return total source-code characters.
-        """
-
         return sum(
             code_file.character_count
             for code_file in code_files
@@ -339,13 +263,35 @@ class CodeLoader:
         self,
         code_files: list[CodeFile],
     ) -> int:
-        """
-        Return total source-code lines.
-        """
-
         return sum(
             code_file.line_count
             for code_file in code_files
+        )
+
+    def total_files(
+        self,
+        code_files: list[CodeFile],
+    ) -> int:
+        return len(code_files)
+
+    def total_relevant_files(
+        self,
+        code_files: list[CodeFile],
+    ) -> int:
+        return sum(
+            1
+            for code_file in code_files
+            if code_file.file_type == "relevant"
+        )
+
+    def total_noise_files(
+        self,
+        code_files: list[CodeFile],
+    ) -> int:
+        return sum(
+            1
+            for code_file in code_files
+            if code_file.file_type == "noise"
         )
 
     # ============================================================
@@ -357,7 +303,9 @@ class CodeLoader:
         code_files: list[CodeFile],
     ) -> None:
         """
-        Validate loaded code files before prompt construction.
+        Validate loaded files.
+
+        There is intentionally NO extension validation.
         """
 
         if not code_files:
@@ -365,9 +313,23 @@ class CodeLoader:
                 "No code files were loaded."
             )
 
-        seen_paths = set()
+        seen_paths: set[str] = set()
 
         for code_file in code_files:
+
+            if not code_file.relative_path:
+                raise ValueError(
+                    "CodeFile has an empty relative path."
+                )
+
+            if not isinstance(
+                code_file.content,
+                str,
+            ):
+                raise ValueError(
+                    f"CodeFile content must be a string: "
+                    f"{code_file.relative_path}"
+                )
 
             if not code_file.content.strip():
                 raise ValueError(
@@ -376,7 +338,9 @@ class CodeLoader:
                 )
 
             canonical = str(
-                code_file.absolute_path.resolve()
+                Path(
+                    code_file.absolute_path
+                ).resolve()
             ).lower()
 
             if canonical in seen_paths:
@@ -396,13 +360,13 @@ class CodeLoader:
         code_files: list[CodeFile],
     ) -> str:
         """
-        Return a readable summary of loaded source files.
+        Return a readable summary of loaded files.
         """
 
         if not code_files:
             return "No source files loaded."
 
-        lines = []
+        lines: list[str] = []
 
         for index, code_file in enumerate(
             code_files,
@@ -410,9 +374,26 @@ class CodeLoader:
         ):
             lines.append(
                 f"{index}. "
+                f"[{code_file.file_type}] "
                 f"{code_file.relative_path} | "
                 f"{code_file.line_count:,} lines | "
                 f"{code_file.character_count:,} chars"
             )
+
+        lines.extend(
+            [
+                "",
+                f"Total files    : "
+                f"{self.total_files(code_files)}",
+                f"Relevant files : "
+                f"{self.total_relevant_files(code_files)}",
+                f"Noise files    : "
+                f"{self.total_noise_files(code_files)}",
+                f"Total lines    : "
+                f"{self.total_lines(code_files):,}",
+                f"Total characters: "
+                f"{self.total_characters(code_files):,}",
+            ]
+        )
 
         return "\n".join(lines)

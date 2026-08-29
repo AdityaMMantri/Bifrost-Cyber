@@ -1,5 +1,8 @@
+from __future__ import annotations
+
 import json
 from pathlib import Path
+from typing import Any
 
 from .models import PrimeVulRecord
 
@@ -8,26 +11,42 @@ class JSONLWriter:
     """
     Writes PrimeVulRecord objects to a JSON Lines (.jsonl) file.
 
-    Each line represents exactly one dataset example.
+    PrimeVul-style output:
 
-    Responsibilities:
-        - Validate PrimeVulRecord objects
-        - Convert records to dictionaries
-        - Serialize them as JSON
-        - Write one record per line
-        - Preserve deterministic field ordering
-        - Prevent accidental malformed output
+        {
+            "project": ...,
+            "commit_id": ...,
+            "target": 0/1,
+            "func": "...model-visible context + source...",
+            "cwe": ...,
+            "cve": ...,
+            "cve_desc": ...
+        }
 
-    This class does NOT:
-        - determine vulnerability labels
-        - load metadata
-        - load Red SFT
-        - build prompts
-        - read source files
+    IMPORTANT
+    ---------
+    This writer does NOT construct model context.
+
+    The model-visible `func` must already have been constructed
+    by the builder/prompt pipeline.
+
+    Therefore this class:
+
+        - validates records
+        - serializes records
+        - preserves func exactly
+        - never inserts metadata
+        - never inserts attack labels
+        - never inserts ground truth
+        - never inserts Red SFT answers
+        - never inserts scenario metadata
+
+    Internal fields such as scenario_id and scenario_context
+    are intentionally NOT serialized.
     """
 
     # ============================================================
-    # PRIMEVUL OUTPUT FIELDS
+    # PRIMEVUL OUTPUT SCHEMA
     # ============================================================
 
     FIELD_ORDER = [
@@ -40,28 +59,30 @@ class JSONLWriter:
         "cve_desc",
     ]
 
+    REQUIRED_FIELDS = {
+        "project",
+        "commit_id",
+        "target",
+        "func",
+        "cwe",
+        "cve",
+        "cve_desc",
+    }
+
+    # ============================================================
+    # CONSTRUCTOR
+    # ============================================================
+
     def __init__(
         self,
         output_path: Path,
         logger=None,
         overwrite: bool = True,
     ):
-        """
-        Parameters
-        ----------
-        output_path:
-            Destination .jsonl file.
-
-        logger:
-            Optional Logger instance.
-
-        overwrite:
-            If True, an existing output file is replaced.
-            If False, an existing output file raises an error.
-        """
-
         self.output_path = Path(output_path)
+
         self.logger = logger
+
         self.overwrite = overwrite
 
     # ============================================================
@@ -73,9 +94,9 @@ class JSONLWriter:
         records: list[PrimeVulRecord],
     ) -> Path:
         """
-        Write all records to the JSONL output file.
+        Write all records to JSONL.
 
-        Each record occupies exactly one line.
+        One record = one JSON line.
         """
 
         if not records:
@@ -85,7 +106,7 @@ class JSONLWriter:
 
         self._prepare_output_path()
 
-        validated_records = []
+        validated_records: list[dict[str, Any]] = []
 
         for index, record in enumerate(
             records,
@@ -97,10 +118,13 @@ class JSONLWriter:
             )
 
             validated_records.append(
-                self._record_to_dict(record)
+                self._record_to_dict(
+                    record
+                )
             )
 
         try:
+
             with self.output_path.open(
                 "w",
                 encoding="utf-8",
@@ -113,21 +137,28 @@ class JSONLWriter:
                         record,
                         file,
                         ensure_ascii=False,
-                        separators=(",", ":"),
+                        separators=(
+                            ",",
+                            ":",
+                        ),
                     )
 
                     file.write("\n")
 
         except OSError as exc:
+
             raise OSError(
                 f"Could not write JSONL file: "
                 f"{self.output_path}\n{exc}"
             ) from exc
 
         if self.logger:
+
             self.logger.info(
-                f"Wrote {len(validated_records)} "
-                f"records to {self.output_path}"
+                f"Wrote "
+                f"{len(validated_records)} "
+                f"records to "
+                f"{self.output_path}"
             )
 
         return self.output_path
@@ -141,13 +172,9 @@ class JSONLWriter:
         record: PrimeVulRecord,
     ) -> Path:
         """
-        Write one PrimeVulRecord to the output file.
+        Append one record to the JSONL file.
 
-        Useful when the main builder wants to stream records
-        rather than keeping the entire dataset in memory.
-
-        NOTE:
-        This method appends to the file.
+        This does not alter the record.
         """
 
         self._validate_record(
@@ -165,6 +192,7 @@ class JSONLWriter:
         )
 
         try:
+
             with self.output_path.open(
                 "a",
                 encoding="utf-8",
@@ -175,12 +203,16 @@ class JSONLWriter:
                     record_dict,
                     file,
                     ensure_ascii=False,
-                    separators=(",", ":"),
+                    separators=(
+                        ",",
+                        ":",
+                    ),
                 )
 
                 file.write("\n")
 
         except OSError as exc:
+
             raise OSError(
                 f"Could not append to JSONL file: "
                 f"{self.output_path}\n{exc}"
@@ -189,18 +221,36 @@ class JSONLWriter:
         return self.output_path
 
     # ============================================================
-    # RECORD CONVERSION
+    # PRIMEVUL SERIALIZATION
     # ============================================================
 
     def _record_to_dict(
         self,
         record: PrimeVulRecord,
-    ) -> dict:
+    ) -> dict[str, Any]:
         """
-        Convert PrimeVulRecord to the final JSONL schema.
+        Convert PrimeVulRecord to the exact PrimeVul-style
+        JSONL schema.
 
-        Internal/debug-only fields such as scenario_id are
-        deliberately excluded.
+        IMPORTANT:
+
+        Only the seven official output fields are emitted.
+
+        These are deliberately excluded:
+
+            scenario_id
+            scenario_context
+            metadata
+            vulnerabilities
+            optimal_attack
+            optimal_defense
+            valid_attacks
+            valid_defenses
+            tags
+            Red SFT information
+            reasoning information
+
+        `func` is copied EXACTLY as supplied by the builder.
         """
 
         return {
@@ -214,7 +264,7 @@ class JSONLWriter:
         }
 
     # ============================================================
-    # VALIDATION
+    # RECORD VALIDATION
     # ============================================================
 
     def _validate_record(
@@ -223,13 +273,14 @@ class JSONLWriter:
         index: int,
     ) -> None:
         """
-        Validate a record before it reaches the JSONL file.
+        Validate one PrimeVulRecord before serialization.
         """
 
         if not isinstance(
             record,
             PrimeVulRecord,
         ):
+
             raise TypeError(
                 f"Record {index} is not a "
                 f"PrimeVulRecord object."
@@ -242,18 +293,28 @@ class JSONLWriter:
         if not isinstance(
             record.project,
             str,
-        ) or not record.project.strip():
+        ):
 
             raise ValueError(
                 f"Record {index}: "
-                f"'project' must be a non-empty string."
+                f"'project' must be a string."
+            )
+
+        if not record.project.strip():
+
+            raise ValueError(
+                f"Record {index}: "
+                f"'project' cannot be empty."
             )
 
         # --------------------------------------------------------
         # Target
         # --------------------------------------------------------
 
-        if record.target not in (0, 1):
+        if record.target not in (
+            0,
+            1,
+        ):
 
             raise ValueError(
                 f"Record {index}: "
@@ -262,51 +323,224 @@ class JSONLWriter:
             )
 
         # --------------------------------------------------------
-        # Source code
+        # FUNC
         # --------------------------------------------------------
 
         if not isinstance(
             record.func,
             str,
-        ) or not record.func.strip():
+        ):
 
             raise ValueError(
                 f"Record {index}: "
-                f"'func' must contain source code."
+                f"'func' must be a string."
+            )
+
+        if not record.func.strip():
+
+            raise ValueError(
+                f"Record {index}: "
+                f"'func' cannot be empty."
             )
 
         # --------------------------------------------------------
-        # Optional fields
+        # Commit ID
         # --------------------------------------------------------
 
-        optional_fields = {
-            "commit_id": record.commit_id,
-            "cwe": record.cwe,
-            "cve": record.cve,
-            "cve_desc": record.cve_desc,
-        }
-
-        for field_name, value in (
-            optional_fields.items()
+        if (
+            record.commit_id is not None
+            and not isinstance(
+                record.commit_id,
+                str,
+            )
         ):
 
-            if value is not None and not isinstance(
-                value,
+            raise ValueError(
+                f"Record {index}: "
+                f"'commit_id' must be a string "
+                f"or null."
+            )
+
+        # --------------------------------------------------------
+        # CWE
+        #
+        # CWE may legitimately be:
+        #
+        #     null
+        #     "CWE-79"
+        #     ["CWE-79", "CWE-89"]
+        #
+        # Therefore do NOT force it to be a string.
+        # --------------------------------------------------------
+
+        self._validate_optional_cwe(
+            record.cwe,
+            index,
+        )
+
+        # --------------------------------------------------------
+        # CVE
+        # --------------------------------------------------------
+
+        if (
+            record.cve is not None
+            and not isinstance(
+                record.cve,
                 str,
-            ):
-                raise ValueError(
-                    f"Record {index}: "
-                    f"'{field_name}' must be a string "
-                    f"or null."
-                )
+            )
+        ):
+
+            raise ValueError(
+                f"Record {index}: "
+                f"'cve' must be a string "
+                f"or null."
+            )
+
+        # --------------------------------------------------------
+        # CVE description
+        # --------------------------------------------------------
+
+        if (
+            record.cve_desc is not None
+            and not isinstance(
+                record.cve_desc,
+                str,
+            )
+        ):
+
+            raise ValueError(
+                f"Record {index}: "
+                f"'cve_desc' must be a string "
+                f"or null."
+            )
+
+        # --------------------------------------------------------
+        # Leakage sanity check
+        # --------------------------------------------------------
+
+        self._validate_no_obvious_answer_leakage(
+            record,
+            index,
+        )
+
+    # ============================================================
+    # CWE VALIDATION
+    # ============================================================
+
+    def _validate_optional_cwe(
+        self,
+        value: Any,
+        index: int,
+    ) -> None:
+        """
+        Validate PrimeVul CWE representations.
+
+        Allowed:
+
+            None
+            string
+            list/tuple of strings
+        """
+
+        if value is None:
+            return
+
+        if isinstance(
+            value,
+            str,
+        ):
+            return
+
+        if isinstance(
+            value,
+            (list, tuple),
+        ):
+
+            for item in value:
+
+                if not isinstance(
+                    item,
+                    str,
+                ):
+
+                    raise ValueError(
+                        f"Record {index}: "
+                        f"'cwe' list must contain "
+                        f"only strings."
+                    )
+
+            return
+
+        raise ValueError(
+            f"Record {index}: "
+            f"'cwe' must be null, a string, "
+            f"or a list/tuple of strings."
+        )
+
+    # ============================================================
+    # ANSWER-LEAKAGE SANITY CHECK
+    # ============================================================
+
+    def _validate_no_obvious_answer_leakage(
+        self,
+        record: PrimeVulRecord,
+        index: int,
+    ) -> None:
+        """
+        Catch obvious accidental metadata leakage into `func`.
+
+        This is intentionally conservative.
+
+        We do NOT attempt to detect legitimate source-code
+        identifiers such as `target`, `attack`, etc.
+
+        The check focuses on explicit dataset-answer markers.
+        """
+
+        func = record.func.lower()
+
+        forbidden_markers = [
+            "ground_truth:",
+            "ground truth:",
+            "expected_classification:",
+            "expected classification:",
+            "optimal_attack:",
+            "optimal attack:",
+            "optimal_defense:",
+            "optimal defense:",
+            "valid_attacks:",
+            "valid attacks:",
+            "valid_defenses:",
+            "valid defenses:",
+            "dataset_labels:",
+            "red_sft:",
+            "classification_label:",
+            "classification label:",
+        ]
+
+        found = [
+            marker
+            for marker in forbidden_markers
+            if marker in func
+        ]
+
+        if found:
+
+            raise ValueError(
+                f"Record {index}: "
+                f"possible answer/metadata leakage "
+                f"detected in 'func': {found}"
+            )
 
     # ============================================================
     # OUTPUT PREPARATION
     # ============================================================
 
-    def _prepare_output_path(self) -> None:
+    def _prepare_output_path(
+        self,
+    ) -> None:
         """
-        Create the output directory and enforce overwrite rules.
+        Create parent directory and enforce overwrite policy.
         """
 
         self.output_path.parent.mkdir(
@@ -318,26 +552,30 @@ class JSONLWriter:
             self.output_path.exists()
             and not self.overwrite
         ):
+
             raise FileExistsError(
                 f"Output file already exists: "
                 f"{self.output_path}"
             )
 
     # ============================================================
-    # VALIDATION OF EXISTING JSONL
+    # EXISTING JSONL VALIDATION
     # ============================================================
 
     def validate_existing_file(
         self,
         path: Path | None = None,
-    ) -> dict:
+    ) -> dict[str, Any]:
         """
         Validate an already-created JSONL file.
 
-        Returns summary statistics.
+        Returns:
 
-        This is useful after the build to catch malformed lines,
-        invalid targets, or missing required fields.
+            total_records
+            vulnerable
+            safe
+            errors
+            valid
         """
 
         path = (
@@ -347,16 +585,21 @@ class JSONLWriter:
         )
 
         if not path.exists():
+
             raise FileNotFoundError(
                 f"JSONL file not found: {path}"
             )
 
         total = 0
+
         vulnerable = 0
+
         safe = 0
-        errors = []
+
+        errors: list[str] = []
 
         try:
+
             with path.open(
                 "r",
                 encoding="utf-8",
@@ -375,6 +618,7 @@ class JSONLWriter:
                     total += 1
 
                     try:
+
                         record = json.loads(
                             line
                         )
@@ -390,11 +634,15 @@ class JSONLWriter:
                             safe += 1
 
                     except Exception as exc:
+
                         errors.append(
-                            f"Line {line_number}: {exc}"
+                            f"Line "
+                            f"{line_number}: "
+                            f"{exc}"
                         )
 
         except OSError as exc:
+
             raise OSError(
                 f"Could not read JSONL file: "
                 f"{path}\n{exc}"
@@ -409,65 +657,130 @@ class JSONLWriter:
         }
 
     # ============================================================
-    # DICTIONARY VALIDATION
+    # RAW DICTIONARY VALIDATION
     # ============================================================
 
     def _validate_dict_record(
         self,
-        record: dict,
+        record: dict[str, Any],
         line_number: int,
     ) -> None:
         """
-        Validate a raw JSON object from an existing JSONL file.
+        Validate one already-serialized JSON object.
         """
 
-        if not isinstance(record, dict):
+        if not isinstance(
+            record,
+            dict,
+        ):
+
             raise ValueError(
                 "record is not a JSON object"
             )
 
-        required_fields = [
-            "project",
-            "commit_id",
-            "target",
-            "func",
-            "cwe",
-            "cve",
-            "cve_desc",
-        ]
+        # --------------------------------------------------------
+        # Exact required schema
+        # --------------------------------------------------------
 
         missing = [
             field
-            for field in required_fields
+            for field in self.REQUIRED_FIELDS
             if field not in record
         ]
 
         if missing:
+
             raise ValueError(
                 f"missing fields: {missing}"
             )
 
-        if record["target"] not in (0, 1):
+        # --------------------------------------------------------
+        # PrimeVul fields only
+        # --------------------------------------------------------
+
+        unexpected = [
+            field
+            for field in record
+            if field not in self.FIELD_ORDER
+        ]
+
+        if unexpected:
+
+            raise ValueError(
+                f"unexpected fields: "
+                f"{unexpected}"
+            )
+
+        # --------------------------------------------------------
+        # Target
+        # --------------------------------------------------------
+
+        if record["target"] not in (
+            0,
+            1,
+        ):
+
             raise ValueError(
                 f"invalid target: "
                 f"{record['target']!r}"
             )
 
+        # --------------------------------------------------------
+        # Project
+        # --------------------------------------------------------
+
         if not isinstance(
             record["project"],
             str,
         ):
+
             raise ValueError(
                 "'project' must be a string"
             )
 
+        if not record["project"].strip():
+
+            raise ValueError(
+                "'project' is empty"
+            )
+
+        # --------------------------------------------------------
+        # FUNC
+        # --------------------------------------------------------
+
         if not isinstance(
             record["func"],
             str,
-        ) or not record["func"].strip():
+        ):
+
+            raise ValueError(
+                "'func' must be a string"
+            )
+
+        if not record["func"].strip():
+
             raise ValueError(
                 "'func' is empty"
             )
+
+        # --------------------------------------------------------
+        # Leakage check
+        # --------------------------------------------------------
+
+        fake_record = PrimeVulRecord(
+            project=record["project"],
+            commit_id=record["commit_id"],
+            target=record["target"],
+            func=record["func"],
+            cwe=record["cwe"],
+            cve=record["cve"],
+            cve_desc=record["cve_desc"],
+        )
+
+        self._validate_no_obvious_answer_leakage(
+            fake_record,
+            line_number,
+        )
 
     # ============================================================
     # STATISTICS

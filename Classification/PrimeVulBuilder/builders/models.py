@@ -1,6 +1,8 @@
+from __future__ import annotations
+
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Optional
+from typing import Any, Optional
 
 
 # ============================================================
@@ -10,13 +12,95 @@ from typing import Optional
 @dataclass
 class Metadata:
     """
-    Structured representation of metadata.json.
+    Builder-side metadata.
 
-    metadata.json is builder-side ground-truth/control data.
-    It is NOT directly exposed to the model.
+    IMPORTANT:
+        Metadata is NEVER passed directly to the model prompt.
+
+    This class intentionally preserves the fields expected by:
+        - metadata_loader.py
+        - build_primevul_jsonl.py
+        - path_resolver.py
+        - target determination
     """
 
-    scenario_name: str
+    # --------------------------------------------------------
+    # Identity
+    # --------------------------------------------------------
+
+    scenario_id: Optional[str] = None
+    name: Optional[str] = None
+
+    # --------------------------------------------------------
+    # Scenario information
+    # --------------------------------------------------------
+
+    category: Optional[str] = None
+    attack_type: Optional[str] = None
+    difficulty: Optional[str] = None
+    scenario_type: Optional[str] = None
+
+    # --------------------------------------------------------
+    # Vulnerability / ground truth
+    # --------------------------------------------------------
+
+    vulnerability_count: int = 0
+    vulnerabilities: list[Any] = field(
+        default_factory=list
+    )
+
+    optimal_attack: Optional[str] = None
+    optimal_defense: Optional[str] = None
+
+    valid_attacks: list[str] = field(
+        default_factory=list
+    )
+
+    valid_defenses: list[str] = field(
+        default_factory=list
+    )
+
+    # --------------------------------------------------------
+    # Security metadata
+    # --------------------------------------------------------
+
+    cwe_reference: Any = None
+    cve: Optional[str] = None
+    cve_desc: Optional[str] = None
+
+    source: Optional[str] = None
+    sink: Optional[str] = None
+    injection_point: Optional[str] = None
+    severity: Optional[str] = None
+    description: Optional[str] = None
+    trust_boundary: Optional[str] = None
+
+    # --------------------------------------------------------
+    # Reasoning / classification metadata
+    # --------------------------------------------------------
+
+    requires_cross_file_reasoning: bool = False
+    reasoning_depth: Optional[int] = None
+
+    competing_hypotheses: list[Any] = field(
+        default_factory=list
+    )
+
+    tags: list[str] = field(
+        default_factory=list
+    )
+
+    classification: dict[str, Any] = field(
+        default_factory=dict
+    )
+
+    extra: dict[str, Any] = field(
+        default_factory=dict
+    )
+
+    # --------------------------------------------------------
+    # File metadata
+    # --------------------------------------------------------
 
     relevant_files: list[str] = field(
         default_factory=list
@@ -26,119 +110,291 @@ class Metadata:
         default_factory=list
     )
 
-    technology_stack: list[str] = field(
-        default_factory=list
-    )
+    # --------------------------------------------------------
+    # Original metadata
+    # --------------------------------------------------------
 
-    trust_boundary: Optional[str] = None
-
-    vulnerabilities: list[dict] = field(
-        default_factory=list
-    )
-
-    optimal_attack: Optional[str] = None
-
-    valid_attacks: list[str] = field(
-        default_factory=list
-    )
-
-    cwe_reference: Optional[str] = None
-
-    injection_point: Optional[str] = None
-
-    sink: Optional[str] = None
-
-    severity: Optional[str] = None
-
-    description: Optional[str] = None
-
-    requires_cross_file_reasoning: bool = False
-
-    # Preserve complete original metadata for:
-    # - validation
-    # - debugging
-    # - label generation
-    # - dataset analysis
-    #
-    # NEVER directly insert raw_data into the model prompt.
-    raw_data: dict = field(
+    raw_data: dict[str, Any] = field(
         default_factory=dict
     )
 
+    # ========================================================
+    # COMPATIBILITY PROPERTIES
+    # ========================================================
+
+    @property
+    def scenario_name(self) -> str:
+        return (
+            self.name
+            or self.scenario_id
+            or ""
+        )
+
+    @scenario_name.setter
+    def scenario_name(
+        self,
+        value: str,
+    ) -> None:
+        self.name = value
+
+    @property
+    def commit_id(self) -> Optional[str]:
+        value = self.extra.get(
+            "commit_id"
+        )
+
+        if isinstance(value, str):
+            return value
+
+        return None
+
+    @property
+    def is_vulnerable(
+        self,
+    ) -> Optional[bool]:
+        """
+        Return explicit vulnerability status when available.
+
+        This property is useful for compatibility, but the
+        PrimeVulBuilder still performs its own explicit target
+        determination.
+        """
+
+        # ----------------------------------------------------
+        # Explicit boolean classification
+        # ----------------------------------------------------
+
+        value = self.classification.get(
+            "is_vulnerable"
+        )
+
+        if isinstance(value, bool):
+            return value
+
+        # ----------------------------------------------------
+        # Explicit ground-truth textual classification
+        # ----------------------------------------------------
+
+        ground_truth = self.classification.get(
+            "ground_truth"
+        )
+
+        if isinstance(
+            ground_truth,
+            str,
+        ):
+
+            normalized = (
+                ground_truth
+                .strip()
+                .lower()
+                .replace("-", "_")
+                .replace(" ", "_")
+            )
+
+            if normalized in {
+                "vulnerable",
+                "vulnerability_present",
+            }:
+                return True
+
+            if normalized in {
+                "non_vulnerable",
+                "not_vulnerable",
+                "safe",
+            }:
+                return False
+
+        # ----------------------------------------------------
+        # Explicit vulnerability objects
+        # ----------------------------------------------------
+
+        if (
+            self.vulnerability_count > 0
+            or self.vulnerabilities
+        ):
+            return True
+
+        # ----------------------------------------------------
+        # Explicit safe scenario type
+        # ----------------------------------------------------
+
+        if self.scenario_type:
+
+            normalized = (
+                self.scenario_type
+                .strip()
+                .lower()
+                .replace("-", "_")
+                .replace(" ", "_")
+            )
+
+            if normalized in {
+                "no_vulnerability",
+                "non_vulnerable",
+                "not_vulnerable",
+                "safe",
+            }:
+                return False
+
+        return None
+
+    @property
+    def target(
+        self,
+    ) -> Optional[int]:
+
+        vulnerable = self.is_vulnerable
+
+        if vulnerable is True:
+            return 1
+
+        if vulnerable is False:
+            return 0
+
+        return None
+
 
 # ============================================================
-# SCENARIO
+# SCENARIO MARKDOWN
 # ============================================================
+
+@dataclass
+class ScenarioSection:
+    """
+    One parsed section from scenario.md.
+
+    `included=True` means that ScenarioLoader has determined
+    that this section is safe to expose to the model.
+    """
+
+    heading: str
+    content: str
+    level: int = 2
+
+    included: bool = False
+
+    exclusion_reason: Optional[str] = None
+
+
+@dataclass
+class ScenarioContext:
+    """
+    Neutral application context extracted from scenario.md.
+
+    This is the ONLY scenario.md representation that should
+    enter the model-visible prompt.
+    """
+
+    scenario_id: str
+
+    sections: list[ScenarioSection] = field(
+        default_factory=list
+    )
+
+    text: str = ""
+
+    loaded: bool = False
+
+    source_file: Optional[str] = None
+
+    # ========================================================
+    # Diagnostics
+    # ========================================================
+
+    @property
+    def section_count(self) -> int:
+        return len(
+            self.sections
+        )
+
+    @property
+    def included_section_count(self) -> int:
+        return sum(
+            1
+            for section in self.sections
+            if section.included
+        )
+
+    @property
+    def excluded_section_count(self) -> int:
+        return sum(
+            1
+            for section in self.sections
+            if not section.included
+        )
+
 
 @dataclass
 class Scenario:
     """
-    Parsed representation of scenario.md.
+    Canonical scenario representation consumed by
+    PromptBuilder.
 
-    scenario.md is an important part of the SFT input pipeline.
+    ScenarioLoader returns ScenarioContext.
 
-    The loader keeps THREE representations:
+    The builder converts it using:
 
-    1. sections
-       --------------------------------------------------------
-       Every section parsed from scenario.md.
-
-       This is builder-side information and may contain
-       ground-truth sections such as:
-
-           Expected Attack
-           Primary Vulnerability
-           Expected Defense
-           Attack Flow
-           Success Condition
-
-       These MUST NOT automatically be exposed to the model.
-
-
-    2. neutral_sections
-       --------------------------------------------------------
-       Only sections explicitly approved as safe contextual
-       information.
-
-       These are the sections PromptBuilder uses in the
-       model-visible prompt.
-
-       Typical examples:
-
-           Description
-           Overview
-           Architecture
-           Technology Stack
-           Normal Workflow
-           Business Workflow
-           Trust Boundary
-           Security Model
-
-
-    3. raw_markdown
-       --------------------------------------------------------
-       The original scenario.md contents.
-
-       Kept only for debugging/auditing.
-
-       It MUST NEVER be inserted directly into the model
-       prompt because it may contain ground truth.
+        Scenario.from_context(...)
     """
 
-    scenario_name: str
+    scenario_id: str
 
-    # Every parsed section from scenario.md.
-    sections: dict[str, str] = field(
-        default_factory=dict
-    )
+    context: Optional[ScenarioContext] = None
 
-    # Only model-safe contextual sections.
-    neutral_sections: dict[str, str] = field(
-        default_factory=dict
-    )
+    # --------------------------------------------------------
+    # Compatibility fields
+    # --------------------------------------------------------
 
-    # Original scenario.md content.
+    scenario_name: Optional[str] = None
+
     raw_markdown: str = ""
+
+    sections: list[ScenarioSection] = field(
+        default_factory=list
+    )
+
+    neutral_sections: Any = field(
+        default_factory=dict
+    )
+
+    # ========================================================
+    # CONSTRUCTION
+    # ========================================================
+
+    @classmethod
+    def from_context(
+        cls,
+        context: ScenarioContext,
+    ) -> "Scenario":
+
+        neutral_sections = [
+            section
+            for section in context.sections
+            if section.included
+        ]
+
+        return cls(
+            scenario_id=context.scenario_id,
+
+            scenario_name=context.scenario_id,
+
+            context=context,
+
+            # IMPORTANT:
+            #
+            # This is the neutral rendered context, NOT the
+            # original raw scenario.md.
+            #
+            # Therefore PromptBuilder can safely use the
+            # context without accidentally receiving excluded
+            # ground-truth sections.
+            raw_markdown=context.text,
+
+            sections=context.sections,
+
+            neutral_sections=neutral_sections,
+        )
 
 
 # ============================================================
@@ -148,134 +404,169 @@ class Scenario:
 @dataclass
 class ResolvedFile:
     """
-    Represents a source file referenced by metadata.json
-    after resolving it to an actual filesystem path.
+    File path resolved by PathResolver.
+
+    This class was missing from the previous models.py and
+    caused:
+
+        ImportError:
+        cannot import name 'ResolvedFile'
+
+    PathResolver and CodeLoader both depend on this exact
+    interface.
     """
 
     relative_path: str
-
     absolute_path: Path
-
-    # Expected values:
-    #
-    #   relevant
-    #   noise
-    #
     file_type: str = "unknown"
+
+    @property
+    def path(self) -> str:
+        return self.relative_path
+
+    @property
+    def is_relevant(self) -> bool:
+        return (
+            self.file_type.lower()
+            == "relevant"
+        )
+
+    @property
+    def is_noise(self) -> bool:
+        return (
+            self.file_type.lower()
+            == "noise"
+        )
 
 
 # ============================================================
-# CODE FILE
+# SOURCE CODE
 # ============================================================
 
 @dataclass
-class CodeFile:
+class SourceFile:
     """
     Loaded source-code file.
 
-    These objects are used by PromptBuilder to construct the
-    model-visible source-code section.
+    Constructor matches CodeLoader exactly.
     """
 
     relative_path: str
-
-    absolute_path: Path
-
-    # relevant / noise
+    absolute_path: Any
     file_type: str
-
     content: str
+    line_count: int
+    character_count: int
 
-    line_count: int = 0
+    @property
+    def path(self) -> str:
+        return self.relative_path
 
-    character_count: int = 0
+    @property
+    def is_relevant(self) -> bool:
+        return (
+            self.file_type.lower()
+            == "relevant"
+        )
+
+    @property
+    def is_noise(self) -> bool:
+        return (
+            self.file_type.lower()
+            == "noise"
+        )
 
 
-# ============================================================
-# RED SFT EXAMPLE
-# ============================================================
+# Existing code imports CodeFile.
+CodeFile = SourceFile
+
 
 @dataclass
-class RedExample:
-    """
-    One Red SFT example from red_sft.json.
-
-    IMPORTANT
-    ---------
-    Red SFT contains ground-truth-oriented information.
-
-    The fields below are builder-side only.
-
-    They may be used to:
-        - determine labels
-        - validate consistency
-        - inspect demonstrations
-        - debug dataset construction
-
-    They MUST NOT be inserted into the model-visible
-    classification context unless explicitly intended as
-    training-answer content.
-    """
-
-    example_id: str
-
-    # Original Red SFT user question.
-    question: str = ""
-
-    # Original Red SFT assistant answer.
-    answer: str = ""
-
-    # Parsed attack label, if present.
-    attack: Optional[str] = None
-
-    # Parsed reasoning, if present.
-    reasoning: Optional[str] = None
-
-    # Alternative/wrong attack hypotheses.
-    wrong_actions: list[str] = field(
+class SourceBundle:
+    files: list[SourceFile] = field(
         default_factory=list
     )
 
-    # Explanation of why wrong actions fail.
-    wrong_action_reasoning: Optional[str] = None
+    @property
+    def file_count(self) -> int:
+        return len(
+            self.files
+        )
+
+    @property
+    def character_count(self) -> int:
+        return sum(
+            file.character_count
+            for file in self.files
+        )
+
+    @property
+    def text(self) -> str:
+        return "\n\n".join(
+            (
+                f"## FILE: {file.relative_path}\n"
+                f"{file.content}"
+            )
+            for file in self.files
+        )
 
 
 # ============================================================
-# VULNERABILITY GROUND TRUTH
+# MODEL INPUT
 # ============================================================
 
 @dataclass
-class VulnerabilityGroundTruth:
+class ModelInput:
     """
-    Normalized vulnerability information.
+    Canonical model-visible input.
 
-    This is BUILDER-SIDE ONLY.
+    Contains ONLY:
 
-    It must never be inserted into the model-visible
-    classification prompt.
+        scenario.md neutral context
+        +
+        relevant source code
+
+    It deliberately contains no:
+        metadata
+        target
+        CWE
+        CVE
+        Red SFT
+        attack labels
+        ground truth
     """
 
-    # PrimeVul-style binary classification:
-    #
-    #   1 = vulnerable
-    #   0 = non-vulnerable
-    target: int
+    scenario_id: str
 
-    vulnerability_type: Optional[str] = None
+    scenario_context: str
 
-    cwe: Optional[str] = None
+    source_code: str
 
-    cve: Optional[str] = None
+    source_files: list[str] = field(
+        default_factory=list
+    )
 
-    description: Optional[str] = None
+    def combined_text(self) -> str:
 
-    attack: Optional[str] = None
+        parts: list[str] = []
 
-    reasoning: Optional[str] = None
+        if self.scenario_context.strip():
 
-    source: Optional[str] = None
+            parts.append(
+                "APPLICATION CONTEXT\n\n"
+                + self.scenario_context.strip()
+            )
 
-    sink: Optional[str] = None
+        if self.source_code.strip():
+
+            parts.append(
+                "SOURCE CODE\n\n"
+                + self.source_code.strip()
+            )
+
+        return "\n\n".join(
+            parts
+        )
 
 
 # ============================================================
@@ -284,26 +575,149 @@ class VulnerabilityGroundTruth:
 
 @dataclass
 class Prompt:
-    """
-    Final prompt sent to the model.
-
-    system:
-        Contents of system_prompt.txt.
-
-    user:
-        Contents of the selected prompt template after
-        inserting:
-
-            - neutral scenario.md context
-            - source-code files
-            - classification question
-
-    Ground-truth metadata must NOT appear here.
-    """
-
     system: str
-
     user: str
+
+    @property
+    def combined(self) -> str:
+        return (
+            f"{self.system}\n\n"
+            f"{self.user}"
+        )
+
+
+@dataclass
+class PromptResult:
+    """
+    Result returned by PromptBuilder.
+    """
+
+    scenario_id: str
+
+    prompt: str
+
+    model_input: Optional[ModelInput] = None
+
+    character_count: int = 0
+
+    estimated_tokens: int = 0
+
+    status: str = "OK"
+
+    def __post_init__(
+        self,
+    ) -> None:
+        self.character_count = len(
+            self.prompt
+        )
+
+
+# ============================================================
+# RED SFT
+# ============================================================
+
+@dataclass
+class RedSFTExample:
+    """
+    Internal Red SFT example.
+
+    IMPORTANT:
+
+        Red SFT is builder-side only.
+
+    The fields below match the constructor currently used by
+    red_sft_loader.py:
+
+        example_id
+        question
+        answer
+        attack
+        reasoning
+        wrong_actions
+        wrong_action_reasoning
+    """
+
+    example_id: str
+
+    question: str
+
+    answer: str
+
+    attack: Optional[str] = None
+
+    reasoning: Optional[str] = None
+
+    wrong_actions: list[str] = field(
+        default_factory=list
+    )
+
+    wrong_action_reasoning: Optional[str] = None
+
+    @property
+    def is_negative(self) -> bool:
+        """
+        Determine whether this is a negative/counterfactual
+        Red example.
+
+        `none` does NOT mean that the model should be trained
+        to output nothing.
+
+        It is simply an internal Red SFT classification state.
+        """
+
+        if self.attack is None:
+            return True
+
+        normalized = (
+            self.attack
+            .strip()
+            .lower()
+            .replace("_", " ")
+            .replace("-", " ")
+        )
+
+        normalized = " ".join(
+            normalized.split()
+        )
+
+        return normalized in {
+            "none",
+            "no attack",
+            "no vulnerability",
+            "not vulnerable",
+            "non vulnerable",
+            "safe",
+            "benign",
+            "no exploitable vulnerability",
+            "no exploitable vulnerabilities",
+        }
+
+
+@dataclass
+class RedSFTBundle:
+    examples: list[RedSFTExample] = field(
+        default_factory=list
+    )
+
+    @property
+    def total(self) -> int:
+        return len(
+            self.examples
+        )
+
+    @property
+    def positive(self) -> int:
+        return sum(
+            not example.is_negative
+            for example in self.examples
+        )
+
+    @property
+    def negative(self) -> int:
+        return sum(
+            example.is_negative
+            for example in self.examples
+        )
 
 
 # ============================================================
@@ -313,10 +727,20 @@ class Prompt:
 @dataclass
 class PrimeVulRecord:
     """
-    One output record in primevul_custom.jsonl.
+    Final internal PrimeVul-style record.
 
-    The structure contains the important PrimeVul-style
-    classification fields.
+    JSONLWriter deliberately serializes only:
+
+        project
+        commit_id
+        target
+        func
+        cwe
+        cve
+        cve_desc
+
+    Internal fields such as scenario_id and scenario_context
+    are NOT written to JSONL.
     """
 
     project: str
@@ -327,17 +751,60 @@ class PrimeVulRecord:
 
     func: str
 
-    cwe: Optional[str] = None
+    cwe: Optional[Any] = None
 
     cve: Optional[str] = None
 
     cve_desc: Optional[str] = None
 
-    # Internal scenario identifier.
-    #
-    # JSONLWriter may omit this from the final PrimeVul-style
-    # output depending on the selected output schema.
+    # --------------------------------------------------------
+    # Internal builder diagnostics
+    # --------------------------------------------------------
+
     scenario_id: Optional[str] = None
+
+    scenario_context: Optional[str] = None
+
+    def validate(self) -> None:
+
+        if self.target not in (
+            0,
+            1,
+        ):
+            raise ValueError(
+                "target must be 0 or 1, "
+                f"got {self.target!r}"
+            )
+
+        if (
+            not isinstance(
+                self.project,
+                str,
+            )
+            or not self.project.strip()
+        ):
+            raise ValueError(
+                "project cannot be empty"
+            )
+
+        if (
+            not isinstance(
+                self.func,
+                str,
+            )
+            or not self.func.strip()
+        ):
+            raise ValueError(
+                "func cannot be empty"
+            )
+
+        if (
+            self.scenario_id is not None
+            and not self.scenario_id.strip()
+        ):
+            raise ValueError(
+                "scenario_id cannot be blank"
+            )
 
 
 # ============================================================
@@ -346,10 +813,6 @@ class PrimeVulRecord:
 
 @dataclass
 class BuildStats:
-    """
-    Statistics accumulated during dataset generation.
-    """
-
     total_scenarios: int = 0
 
     successful: int = 0
@@ -364,106 +827,61 @@ class BuildStats:
 
     total_code_characters: int = 0
 
+    total_context_characters: int = 0
+
     total_prompt_characters: int = 0
 
     errors: list[str] = field(
         default_factory=list
     )
 
-    # --------------------------------------------------------
-    # Register target
-    # --------------------------------------------------------
-
-    def register_target(
+    def record_success(
         self,
+        *,
         target: int,
+        source_files: int = 0,
+        source_characters: int = 0,
+        context_characters: int = 0,
+        prompt_characters: int = 0,
     ) -> None:
-        """
-        Register one generated sample according to its target.
-        """
-
-        if target == 1:
-
-            self.vulnerable_samples += 1
-
-        elif target == 0:
-
-            self.safe_samples += 1
-
-        else:
-
-            raise ValueError(
-                f"Invalid target: {target}. "
-                f"Expected 0 or 1."
-            )
-
-    # --------------------------------------------------------
-    # Register successful scenario
-    # --------------------------------------------------------
-
-    def register_success(
-        self,
-    ) -> None:
-        """
-        Register a successfully processed scenario.
-        """
 
         self.successful += 1
 
-    # --------------------------------------------------------
-    # Register error
-    # --------------------------------------------------------
+        if target == 1:
+            self.vulnerable_samples += 1
+        else:
+            self.safe_samples += 1
 
-    def register_error(
+        self.total_code_files += (
+            source_files
+        )
+
+        self.total_code_characters += (
+            source_characters
+        )
+
+        self.total_context_characters += (
+            context_characters
+        )
+
+        self.total_prompt_characters += (
+            prompt_characters
+        )
+
+    def record_failure(
         self,
-        error: str,
+        message: str,
     ) -> None:
-        """
-        Register a failed scenario and preserve the error.
-        """
 
         self.failed += 1
 
         self.errors.append(
-            str(error)
+            message
         )
 
-    # --------------------------------------------------------
-    # Register code
-    # --------------------------------------------------------
-
-    def register_code(
-        self,
-        file_count: int,
-        character_count: int,
-    ) -> None:
-        """
-        Register source-code statistics.
-        """
-
-        self.total_code_files += (
-            file_count
-        )
-
-        self.total_code_characters += (
-            character_count
-        )
-
-    # --------------------------------------------------------
-    # Register prompt
-    # --------------------------------------------------------
-
-    def register_prompt(
-        self,
-        character_count: int,
-    ) -> None:
-        """
-        Register generated prompt size.
-        """
-
-        self.total_prompt_characters += (
-            character_count
-        )
+    @property
+    def output_records(self) -> int:
+        return self.successful
 
 
 # ============================================================
@@ -472,25 +890,32 @@ class BuildStats:
 
 @dataclass
 class ScenarioBuildResult:
-    """
-    Result produced after processing one scenario.
+    scenario_id: str
 
-    Keeps useful intermediate information together while
-    processing a scenario.
-    """
+    metadata: Optional[Metadata] = None
 
-    scenario_name: str
+    scenario_context: Optional[
+        ScenarioContext
+    ] = None
+
+    source_bundle: Optional[
+        SourceBundle
+    ] = None
+
+    red_sft: Optional[
+        RedSFTBundle
+    ] = None
+
+    model_input: Optional[
+        ModelInput
+    ] = None
+
+    prompt_result: Optional[
+        PromptResult
+    ] = None
 
     record: Optional[
         PrimeVulRecord
-    ] = None
-
-    prompt: Optional[
-        Prompt
-    ] = None
-
-    ground_truth: Optional[
-        VulnerabilityGroundTruth
     ] = None
 
     success: bool = False

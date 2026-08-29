@@ -1,43 +1,76 @@
+from __future__ import annotations
+
 from pathlib import Path
 
 from .models import (
     CodeFile,
+    ModelInput,
     Prompt,
+    PromptResult,
     Scenario,
+    ScenarioContext,
 )
 
 
 class PromptBuilder:
     """
-    Builds the final PrimeVul-style classification prompt.
+    Builds the canonical model input and final classification prompt.
 
-    MODEL-VISIBLE:
+    DATA FLOW
+    ---------
+
+        scenario.md
+             |
+             v
+        ScenarioLoader
+             |
+             v
+        ScenarioContext
+             |
+             +----------------------+
+             |                      |
+             v                      v
+        PromptBuilder          ModelInput
+             |                      |
+             v                      |
+        PromptResult               |
+             |                      |
+             +----------+-----------+
+                        |
+                        v
+                  JSONL / Debug
+
+
+    MODEL-VISIBLE
+    -------------
         1. system_prompt.txt
-        2. SAFE / NEUTRAL sections extracted from scenario.md
+        2. neutral scenario.md context
         3. relevant source-code files
 
-    BUILDER-ONLY:
-        - metadata.json
-        - red_sft.json
-        - blue_sft.json
-        - attack labels
-        - Red-Team reasoning
-        - CWE
-        - injection point
-        - sink
-        - expected attack
-        - optimal attack
-        - ground-truth labels
 
-    Final structure:
+    BUILDER-ONLY
+    ------------
+        metadata.json
+        red_sft.json
+        blue_sft.json
+        target
+        attack labels
+        Red-Team reasoning
+        CWE
+        CVE
+        injection point
+        sink
+        expected attack
+        optimal attack
+        optimal defense
+        vulnerability details
 
-        SYSTEM PROMPT
-             +
-        SCENARIO.MD CONTEXT
-             +
-        SOURCE CODE
-             +
-        CLASSIFICATION TASK
+
+    IMPORTANT
+    ---------
+    This class never reads metadata.json for prompt content.
+
+    Ground truth must never be inserted into the prompt.
     """
 
     # ============================================================
@@ -61,29 +94,25 @@ class PromptBuilder:
         self.logger = logger
 
         # --------------------------------------------------------
-        # Load system prompt
+        # Load system prompt.
         # --------------------------------------------------------
 
-        self.system_prompt = (
-            self._load_template_file(
-                self.system_prompt_path,
-                "system prompt",
-            )
+        self.system_prompt = self._load_template_file(
+            self.system_prompt_path,
+            "system prompt",
         )
 
         # --------------------------------------------------------
-        # Load prompt template
+        # Load prompt template.
         # --------------------------------------------------------
 
-        self.prompt_template = (
-            self._load_template_file(
-                self.prompt_template_path,
-                "prompt template",
-            )
+        self.prompt_template = self._load_template_file(
+            self.prompt_template_path,
+            "prompt template",
         )
 
         # --------------------------------------------------------
-        # Validate template immediately.
+        # Validate immediately.
         # --------------------------------------------------------
 
         self._validate_template()
@@ -96,22 +125,19 @@ class PromptBuilder:
         self,
         scenario: Scenario,
         code_files: list[CodeFile],
-    ) -> Prompt:
+    ) -> PromptResult:
         """
-        Build the final model-visible classification prompt.
+        Build the complete model-visible input.
 
-        scenario:
-            Parsed scenario.md.
+        Returns PromptResult containing:
 
-            IMPORTANT:
-            ScenarioLoader must already have populated
-            scenario.neutral_sections.
+            prompt
+            model_input
+            statistics
 
-        code_files:
-            Relevant source files selected by metadata.json.
-
-        Returns:
-            Prompt(system=..., user=...)
+        The SAME ModelInput object should later be supplied to
+        JSONLWriter so that debug output and JSONL cannot drift
+        apart.
         """
 
         if not isinstance(
@@ -129,15 +155,7 @@ class PromptBuilder:
             )
 
         # --------------------------------------------------------
-        # 1. scenario.md
-        #
-        # Only neutral_sections are allowed.
-        #
-        # DO NOT use:
-        #   scenario.raw_markdown
-        #   scenario.sections
-        #
-        # because they may contain ground truth.
+        # 1. Build neutral scenario context.
         # --------------------------------------------------------
 
         scenario_context = (
@@ -147,7 +165,7 @@ class PromptBuilder:
         )
 
         # --------------------------------------------------------
-        # 2. Relevant source code
+        # 2. Build source code.
         # --------------------------------------------------------
 
         source_code = (
@@ -157,15 +175,53 @@ class PromptBuilder:
         )
 
         # --------------------------------------------------------
-        # 3. Insert both into prompt_template.txt
+        # 3. Determine canonical scenario ID.
+        #
+        # ScenarioLoader should already have loaded the scenario
+        # from the scenario directory. Prefer scenario_id when
+        # available, otherwise fall back to scenario_name.
         # --------------------------------------------------------
 
-        user_prompt = (
-            self._render_template(
-                scenario_context=scenario_context,
-                source_code=source_code,
-            )
+        scenario_id = self._get_scenario_id(
+            scenario
         )
+
+        # --------------------------------------------------------
+        # 4. Construct canonical ModelInput.
+        #
+        # THIS is the critical architectural change.
+        #
+        # Both:
+        #
+        #     PromptBuilder
+        #     JSONLWriter
+        #
+        # should use this same object.
+        # --------------------------------------------------------
+
+        model_input = ModelInput(
+            scenario_id=scenario_id,
+            scenario_context=scenario_context,
+            source_code=source_code,
+            source_files=[
+                code_file.relative_path
+                for code_file in code_files
+                if code_file.content.strip()
+            ],
+        )
+
+        # --------------------------------------------------------
+        # 5. Render user prompt from canonical ModelInput.
+        # --------------------------------------------------------
+
+        user_prompt = self._render_template(
+            scenario_context=model_input.scenario_context,
+            source_code=model_input.source_code,
+        )
+
+        # --------------------------------------------------------
+        # 6. Construct Prompt.
+        # --------------------------------------------------------
 
         prompt = Prompt(
             system=self.system_prompt,
@@ -173,7 +229,35 @@ class PromptBuilder:
         )
 
         # --------------------------------------------------------
-        # Logging
+        # 7. Estimate tokens.
+        #
+        # This remains a rough estimate. Exact tokenization should
+        # be performed by the model tokenizer later.
+        # --------------------------------------------------------
+
+        estimated_tokens = (
+            self._estimate_tokens(
+                prompt
+            )
+        )
+
+        status = (
+            self._prompt_status(
+                estimated_tokens
+            )
+        )
+
+        result = PromptResult(
+            scenario_id=scenario_id,
+            prompt=user_prompt,
+            model_input=model_input,
+            character_count=len(user_prompt),
+            estimated_tokens=estimated_tokens,
+            status=status,
+        )
+
+        # --------------------------------------------------------
+        # Logging.
         # --------------------------------------------------------
 
         if self.logger:
@@ -181,10 +265,10 @@ class PromptBuilder:
                 characters=len(user_prompt)
             )
 
-        return prompt
+        return result
 
     # ============================================================
-    # SCENARIO.MD CONTEXT
+    # SCENARIO CONTEXT
     # ============================================================
 
     def _build_scenario_context(
@@ -192,94 +276,216 @@ class PromptBuilder:
         scenario: Scenario,
     ) -> str:
         """
-        Build the model-visible context extracted from
-        scenario.md.
+        Extract ONLY the neutral scenario context.
 
-        IMPORTANT:
+        This method deliberately does NOT fall back to:
 
-        ScenarioLoader is responsible for deciding which
-        sections are neutral.
+            scenario.raw_markdown
+            scenario.sections
 
-        PromptBuilder does NOT independently inspect metadata
-        or ground truth.
+        because those may contain ground truth.
 
-        It simply consumes:
+        The preferred source is:
 
             scenario.neutral_sections
 
-        Therefore the flow is:
-
-            scenario.md
-                ↓
-            ScenarioLoader
-                ↓
-            neutral_sections
-                ↓
-            PromptBuilder
-                ↓
-            model prompt
+        If the updated ScenarioLoader stores a ScenarioContext
+        object on the Scenario, that is also supported.
         """
 
         # --------------------------------------------------------
-        # Explicit validation.
+        # Preferred path:
         #
-        # This makes it impossible to silently generate a
-        # prompt without using scenario.md.
+        # ScenarioContext attached to Scenario.
         # --------------------------------------------------------
 
-        if not scenario.raw_markdown.strip():
-            raise ValueError(
-                "scenario.md was not loaded or is empty for "
-                f"scenario '{scenario.scenario_name}'."
-            )
+        context = getattr(
+            scenario,
+            "context",
+            None,
+        )
 
-        if not scenario.sections:
-            raise ValueError(
-                "scenario.md was loaded but no sections were "
-                f"parsed for scenario '{scenario.scenario_name}'."
-            )
-
-        # --------------------------------------------------------
-        # neutral_sections may legitimately be empty if a
-        # scenario.md contains only excluded/ground-truth
-        # sections.
-        #
-        # We do NOT fall back to scenario.sections because that
-        # could leak the answer.
-        # --------------------------------------------------------
-
-        if not scenario.neutral_sections:
-            return (
-                "No additional neutral application context "
-                "was provided by scenario.md."
-            )
-
-        blocks = []
-
-        for heading, content in (
-            scenario.neutral_sections.items()
+        if isinstance(
+            context,
+            ScenarioContext,
         ):
-            if not content:
-                continue
+            if not context.loaded:
+                raise ValueError(
+                    "ScenarioContext exists but is marked "
+                    f"as not loaded for "
+                    f"'{self._scenario_name(scenario)}'."
+                )
 
-            content = content.strip()
+            if not context.text.strip():
+                raise ValueError(
+                    "scenario.md was loaded but produced no "
+                    "neutral model-visible context for "
+                    f"'{self._scenario_name(scenario)}'."
+                )
 
-            if not content:
-                continue
+            return context.text.strip()
 
-            blocks.append(
-                f"## {heading.strip()}\n\n"
-                f"{content}"
+        # --------------------------------------------------------
+        # Compatibility path:
+        #
+        # Older Scenario model with neutral_sections.
+        #
+        # This keeps the builder compatible during migration.
+        # --------------------------------------------------------
+
+        neutral_sections = getattr(
+            scenario,
+            "neutral_sections",
+            None,
+        )
+
+        if neutral_sections:
+            return self._render_neutral_sections(
+                neutral_sections
             )
 
-        if not blocks:
-            return (
-                "No additional neutral application context "
-                "was provided by scenario.md."
-            )
+        # --------------------------------------------------------
+        # If ScenarioLoader has not supplied neutral context,
+        # FAIL rather than silently generating a source-only
+        # prompt.
+        #
+        # This directly prevents the problem you had where
+        # scenario.md existed in debug information but disappeared
+        # from the actual model input.
+        # --------------------------------------------------------
 
-        return "\n\n".join(
-            blocks
+        raise ValueError(
+            "No neutral scenario.md context is available for "
+            f"'{self._scenario_name(scenario)}'. "
+            "ScenarioLoader must load and provide "
+            "neutral scenario context before PromptBuilder "
+            "can construct the prompt."
+        )
+
+    # ============================================================
+    # NEUTRAL SECTION RENDERING
+    # ============================================================
+
+    def _render_neutral_sections(
+        self,
+        neutral_sections,
+    ) -> str:
+        """
+        Render neutral sections supplied by ScenarioLoader.
+
+        Supports both:
+
+            dict[str, str]
+
+        and:
+
+            list[ScenarioSection]
+        """
+
+        # --------------------------------------------------------
+        # New ScenarioSection representation.
+        # --------------------------------------------------------
+
+        if isinstance(
+            neutral_sections,
+            list,
+        ):
+            blocks = []
+
+            for section in neutral_sections:
+
+                if not getattr(
+                    section,
+                    "included",
+                    True,
+                ):
+                    continue
+
+                heading = getattr(
+                    section,
+                    "heading",
+                    "",
+                ).strip()
+
+                content = getattr(
+                    section,
+                    "content",
+                    "",
+                ).strip()
+
+                if not content:
+                    continue
+
+                level = getattr(
+                    section,
+                    "level",
+                    2,
+                )
+
+                level = max(
+                    2,
+                    min(
+                        int(level),
+                        6,
+                    ),
+                )
+
+                blocks.append(
+                    f"{'#' * level} {heading}\n\n"
+                    f"{content}"
+                )
+
+            if not blocks:
+                raise ValueError(
+                    "ScenarioLoader supplied neutral sections, "
+                    "but all sections were empty."
+                )
+
+            return "\n\n".join(
+                blocks
+            ).strip()
+
+        # --------------------------------------------------------
+        # Backward-compatible dictionary representation.
+        # --------------------------------------------------------
+
+        if isinstance(
+            neutral_sections,
+            dict,
+        ):
+            blocks = []
+
+            for heading, content in (
+                neutral_sections.items()
+            ):
+                if not content:
+                    continue
+
+                content = str(
+                    content
+                ).strip()
+
+                if not content:
+                    continue
+
+                blocks.append(
+                    f"## {str(heading).strip()}\n\n"
+                    f"{content}"
+                )
+
+            if not blocks:
+                raise ValueError(
+                    "ScenarioLoader supplied neutral sections, "
+                    "but all sections were empty."
+                )
+
+            return "\n\n".join(
+                blocks
+            ).strip()
+
+        raise TypeError(
+            "Unsupported neutral_sections type: "
+            f"{type(neutral_sections).__name__}"
         )
 
     # ============================================================
@@ -291,12 +497,10 @@ class PromptBuilder:
         code_files: list[CodeFile],
     ) -> str:
         """
-        Build the model-visible source-code section.
+        Build the model-visible source-code block.
 
-        Only files already selected by the upstream
-        PathResolver/CodeLoader are included.
-
-        PromptBuilder does NOT decide which files are relevant.
+        Only files already selected by PathResolver /
+        CodeLoader are included.
         """
 
         blocks = []
@@ -310,9 +514,18 @@ class PromptBuilder:
             if not content:
                 continue
 
+            relative_path = (
+                code_file.relative_path.strip()
+            )
+
+            if not relative_path:
+                raise ValueError(
+                    "A CodeFile has empty relative_path."
+                )
+
             blocks.append(
                 "## FILE: "
-                f"{code_file.relative_path}\n\n"
+                f"{relative_path}\n\n"
                 f"{content}"
             )
 
@@ -342,21 +555,27 @@ class PromptBuilder:
             {{SCENARIO}}
             {{SOURCE_CODE}}
 
-        No ground-truth placeholder is permitted.
+        Ground-truth placeholders are forbidden.
         """
+
+        if not scenario_context.strip():
+            raise ValueError(
+                "Cannot render prompt without scenario context."
+            )
+
+        if not source_code.strip():
+            raise ValueError(
+                "Cannot render prompt without source code."
+            )
 
         replacements = {
             "{{SCENARIO}}": scenario_context,
             "{{SOURCE_CODE}}": source_code,
         }
 
-        rendered = (
-            self.prompt_template
-        )
+        rendered = self.prompt_template
 
-        for placeholder, value in (
-            replacements.items()
-        ):
+        for placeholder, value in replacements.items():
 
             if placeholder not in rendered:
                 raise ValueError(
@@ -369,7 +588,14 @@ class PromptBuilder:
                 value,
             )
 
-        return rendered.strip()
+        rendered = rendered.strip()
+
+        if not rendered:
+            raise ValueError(
+                "Rendered classification prompt is empty."
+            )
+
+        return rendered
 
     # ============================================================
     # TEMPLATE VALIDATION
@@ -377,15 +603,8 @@ class PromptBuilder:
 
     def _validate_template(self) -> None:
         """
-        Validate prompt_template.txt.
-
-        The template MUST contain:
-
-            {{SCENARIO}}
-            {{SOURCE_CODE}}
-
-        It MUST NOT contain placeholders that directly expose
-        ground truth.
+        Validate prompt_template.txt before processing any
+        scenarios.
         """
 
         required_placeholders = {
@@ -406,15 +625,18 @@ class PromptBuilder:
             )
 
         # --------------------------------------------------------
-        # Ground-truth placeholders are forbidden.
+        # No ground-truth placeholder may exist.
         # --------------------------------------------------------
 
         forbidden_placeholders = {
             "{{ATTACK}}",
             "{{TARGET}}",
+            "{{LABEL}}",
             "{{CWE}}",
             "{{CVE}}",
+            "{{CVE_DESC}}",
             "{{RED_REASONING}}",
+            "{{BLUE_REASONING}}",
             "{{WRONG_ACTIONS}}",
             "{{WRONG_ACTION_REASONING}}",
             "{{OPTIMAL_ATTACK}}",
@@ -425,6 +647,13 @@ class PromptBuilder:
             "{{VULNERABILITY}}",
             "{{VULNERABILITY_TYPE}}",
             "{{SEVERITY}}",
+            "{{VALID_ATTACKS}}",
+            "{{VALID_DEFENSES}}",
+            "{{COMPETING_HYPOTHESES}}",
+            "{{CLASSIFICATION}}",
+            "{{EXPECTED_CLASSIFICATION}}",
+            "{{EXPECTED_ATTACK}}",
+            "{{EXPECTED_DEFENSE}}",
         }
 
         found_forbidden = [
@@ -439,6 +668,129 @@ class PromptBuilder:
                 "ground-truth placeholder(s): "
                 f"{found_forbidden}"
             )
+
+    # ============================================================
+    # SCENARIO ID
+    # ============================================================
+
+    def _get_scenario_id(
+        self,
+        scenario: Scenario,
+    ) -> str:
+        """
+        Resolve the scenario identifier.
+
+        Prefer an explicit scenario_id supplied by the loader.
+
+        IMPORTANT:
+        Do not use the scenario name as the canonical ID.
+        """
+
+        scenario_id = getattr(
+            scenario,
+            "scenario_id",
+            None,
+        )
+
+        if scenario_id:
+            return str(
+                scenario_id
+            ).strip()
+
+        context = getattr(
+            scenario,
+            "context",
+            None,
+        )
+
+        if isinstance(
+            context,
+            ScenarioContext,
+        ):
+            if context.scenario_id:
+                return context.scenario_id.strip()
+
+        # Compatibility fallback.
+        scenario_name = getattr(
+            scenario,
+            "scenario_name",
+            None,
+        )
+
+        if scenario_name:
+            return str(
+                scenario_name
+            ).strip()
+
+        raise ValueError(
+            "Unable to determine scenario ID."
+        )
+
+    # ============================================================
+    # SCENARIO NAME
+    # ============================================================
+
+    @staticmethod
+    def _scenario_name(
+        scenario: Scenario,
+    ) -> str:
+        return str(
+            getattr(
+                scenario,
+                "scenario_name",
+                "unknown",
+            )
+        )
+
+    # ============================================================
+    # TOKEN ESTIMATION
+    # ============================================================
+
+    def _estimate_tokens(
+        self,
+        prompt: Prompt,
+    ) -> int:
+        """
+        Rough token estimate.
+
+        This is NOT an exact tokenizer count.
+
+        A later tokenizer-based ContextEstimator can replace
+        this value without changing PromptBuilder.
+        """
+
+        total_characters = (
+            len(prompt.system)
+            + len(prompt.user)
+        )
+
+        return max(
+            1,
+            total_characters // 4,
+        )
+
+    # ============================================================
+    # PROMPT STATUS
+    # ============================================================
+
+    def _prompt_status(
+        self,
+        estimated_tokens: int,
+    ) -> str:
+        """
+        Assign a coarse status based on estimated token count.
+
+        These thresholds are intentionally conservative and
+        should eventually come from config/context_estimator.
+        """
+
+        if estimated_tokens <= 4096:
+            return "OK"
+
+        if estimated_tokens <= 8192:
+            return "WARNING"
+
+        return "CRITICAL"
 
     # ============================================================
     # FILE LOADING
@@ -496,25 +848,30 @@ class PromptBuilder:
         return content
 
     # ============================================================
-    # DEBUGGING / PREVIEW
+    # DEBUG PREVIEW
     # ============================================================
 
     def build_preview(
         self,
-        prompt: Prompt,
+        prompt_result: PromptResult,
         max_characters: int = 5000,
     ) -> str:
         """
-        Return a shortened prompt preview.
+        Generate a debug preview of the exact prompt.
 
-        This is only for debugging/logging.
+        This uses PromptResult.prompt, which is the same rendered
+        prompt generated from ModelInput.
         """
+
+        prompt_text = (
+            prompt_result.prompt
+        )
 
         preview = (
             "===== SYSTEM =====\n"
-            f"{prompt.system}\n\n"
+            f"{self.system_prompt}\n\n"
             "===== USER =====\n"
-            f"{prompt.user}"
+            f"{prompt_text}"
         )
 
         if len(preview) <= max_characters:
@@ -531,67 +888,81 @@ class PromptBuilder:
 
     def prompt_statistics(
         self,
-        prompt: Prompt,
+        prompt_result: PromptResult,
     ) -> dict:
         """
-        Return basic prompt statistics.
-
-        Character counts are used instead of pretending to
-        represent exact tokenizer token counts.
+        Return statistics for debugging and build reports.
         """
 
+        prompt = prompt_result.prompt
+
+        model_input = (
+            prompt_result.model_input
+        )
+
         return {
+            "scenario_id": (
+                prompt_result.scenario_id
+            ),
+
             "system_characters": len(
-                prompt.system
+                self.system_prompt
             ),
 
             "user_characters": len(
-                prompt.user
+                prompt
             ),
 
             "total_characters": (
-                len(prompt.system)
-                + len(prompt.user)
+                len(self.system_prompt)
+                + len(prompt)
+            ),
+
+            "estimated_tokens": (
+                prompt_result.estimated_tokens
+            ),
+
+            "status": (
+                prompt_result.status
+            ),
+
+            "scenario_context_characters": (
+                len(
+                    model_input.scenario_context
+                )
+                if model_input
+                else 0
+            ),
+
+            "source_code_characters": (
+                len(
+                    model_input.source_code
+                )
+                if model_input
+                else 0
+            ),
+
+            "source_file_count": (
+                len(
+                    model_input.source_files
+                )
+                if model_input
+                else 0
             ),
 
             "source_sections": (
-                prompt.user.count(
+                prompt.count(
                     "## FILE:"
                 )
             ),
 
-            "scenario_sections": (
-                self._count_scenario_sections(
-                    prompt.user
-                )
+            "has_application_context": (
+                "APPLICATION CONTEXT"
+                in prompt
+            ),
+
+            "has_source_code": (
+                "SOURCE CODE"
+                in prompt
             ),
         }
-
-    # ============================================================
-    # INTERNAL STATISTICS
-    # ============================================================
-
-    def _count_scenario_sections(
-        self,
-        user_prompt: str,
-    ) -> int:
-        """
-        Approximate number of scenario context sections.
-
-        This is only a debugging statistic.
-        """
-
-        if "APPLICATION CONTEXT" not in user_prompt:
-            return 0
-
-        if "SOURCE CODE" not in user_prompt:
-            return 0
-
-        context_part = user_prompt.split(
-            "SOURCE CODE",
-            1,
-        )[0]
-
-        return context_part.count(
-            "## "
-        )

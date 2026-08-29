@@ -4,70 +4,17 @@ build_primevul_jsonl.py
 Main entry point for building a PrimeVul-style JSONL dataset
 from the existing scenario-based SFT dataset.
 
-Pipeline
---------
 
-scenario/
-    |
-    +-- metadata.json
-    +-- scenario.md
-    +-- red_sft.json
-    +-- blue_sft.json       <-- NOT USED
-    |
-    +-- files/
-            |
-            v
-      MetadataLoader
-            |
-            v
-         Metadata
-            |
-            +----------------------+
-            |                      |
-            v                      v
-      ScenarioLoader         RedSFTLoader
-            |                      |
-            v                      v
-         Scenario            Red Ground Truth
-            |
-            v
-      PathResolver
-            |
-            v
-      ResolvedFile[]
-            |
-            v
-       CodeLoader
-            |
-            v
-        CodeFile[]
-            |
-            v
-      PromptBuilder
-            |
-            v
-          Prompt
-            |
-            v
-      PrimeVulRecord
-            |
-            v
-      JSONLWriter
-            |
-            v
-  primevul_custom.jsonl
+MODEL-VISIBLE DATA
+------------------
 
-
-IMPORTANT
----------
-
-The model-visible prompt contains ONLY:
+The classification model receives ONLY:
 
     - system_prompt.txt
-    - allowed/neutral scenario.md sections
+    - neutral scenario.md context
     - relevant source-code files
 
-The prompt does NOT contain:
+The model does NOT receive:
 
     - metadata.json
     - red_sft.json
@@ -76,13 +23,40 @@ The prompt does NOT contain:
     - CWE
     - CVE
     - expected attack
+    - expected defense
     - Red reasoning
-    - wrong actions
+    - competing hypotheses
     - injection point
     - sink
-    - ground-truth vulnerability information
+    - source metadata
+    - ground-truth vulnerability descriptions
+
+GROUND TRUTH
+------------
+
+Ground truth is handled entirely on the builder side.
+
+The final PrimeVul record contains:
+
+    project
+    commit_id
+    target
+    func
+    cwe
+    cve
+    cve_desc
+
+`func` contains the actual model-visible prompt produced by
+PromptBuilder.
+
+IMPORTANT:
+
+Do NOT reconstruct `func` from source files after PromptBuilder.
+PromptBuilder is the single authority for the model-visible input.
 """
 
+
+from __future__ import annotations
 
 from pathlib import Path
 import sys
@@ -96,6 +70,7 @@ from builders.logger import Logger
 from builders.models import (
     Metadata,
     PrimeVulRecord,
+    Scenario,
 )
 
 from builders.metadata_loader import (
@@ -145,109 +120,110 @@ from utils.context_estimator import (
 class PrimeVulBuilder:
     """
     Orchestrates the complete PrimeVul dataset-building process.
+
+    Separation of concerns:
+
+        metadata_loader
+            -> ground truth / builder-side metadata
+
+        scenario_loader
+            -> neutral scenario.md context
+
+        red_sft_loader
+            -> Red SFT validation / supporting ground truth
+
+        path_resolver
+            -> relevant source file paths
+
+        code_loader
+            -> source code
+
+        prompt_builder
+            -> COMPLETE MODEL-VISIBLE INPUT
+
+        jsonl_writer
+            -> PrimeVul JSONL serialization
     """
 
     def __init__(
         self,
-        logger=None,
-    ):
+        logger: Optional[Logger] = None,
+    ) -> None:
+
         self.logger = logger
 
         # --------------------------------------------------------
         # Metadata
         # --------------------------------------------------------
 
-        self.metadata_loader = (
-            MetadataLoader(
-                logger=logger
-            )
+        self.metadata_loader = MetadataLoader(
+            logger=logger
         )
 
         # --------------------------------------------------------
         # Scenario
         # --------------------------------------------------------
 
-        self.scenario_loader = (
-            ScenarioLoader(
-                logger=logger,
-                allowed_sections=(
-                    config.ALLOWED_SCENARIO_SECTIONS
-                ),
-                excluded_sections=(
-                    config.EXCLUDED_SCENARIO_SECTIONS
-                ),
-            )
+        self.scenario_loader = ScenarioLoader(
+            include_allowed_only=True,
+            reject_content_leakage=True,
         )
 
         # --------------------------------------------------------
         # Red SFT
         # --------------------------------------------------------
 
-        self.red_sft_loader = (
-            RedSFTLoader(
-                logger=logger,
-                strict_attack_consistency=True,
-            )
+        self.red_sft_loader = RedSFTLoader(
+            logger=logger,
+            strict_attack_consistency=True,
         )
 
         # --------------------------------------------------------
         # Paths
         # --------------------------------------------------------
 
-        self.path_resolver = (
-            PathResolver(
-                logger=logger
-            )
+        self.path_resolver = PathResolver(
+            logger=logger
         )
 
         # --------------------------------------------------------
         # Source code
         # --------------------------------------------------------
 
-        self.code_loader = (
-            CodeLoader(
-                logger=logger
-            )
+        self.code_loader = CodeLoader(
+            logger=logger
         )
 
         # --------------------------------------------------------
         # Prompt
         # --------------------------------------------------------
 
-        self.prompt_builder = (
-            PromptBuilder(
-                system_prompt_path=(
-                    config.SYSTEM_PROMPT_FILE
-                ),
-                prompt_template_path=(
-                    config.PROMPT_TEMPLATE_FILE
-                ),
-                logger=logger,
-            )
+        self.prompt_builder = PromptBuilder(
+            system_prompt_path=(
+                config.SYSTEM_PROMPT_FILE
+            ),
+            prompt_template_path=(
+                config.PROMPT_TEMPLATE_FILE
+            ),
+            logger=logger,
         )
 
         # --------------------------------------------------------
         # Context estimator
         # --------------------------------------------------------
 
-        self.context_estimator = (
-            ContextEstimator(
-                logger=logger
-            )
+        self.context_estimator = ContextEstimator(
+            logger=logger
         )
 
         # --------------------------------------------------------
         # JSONL writer
         # --------------------------------------------------------
 
-        self.writer = (
-            JSONLWriter(
-                output_path=(
-                    config.OUTPUT_FILE
-                ),
-                logger=logger,
-                overwrite=True,
-            )
+        self.writer = JSONLWriter(
+            output_path=config.OUTPUT_FILE,
+            logger=logger,
+            overwrite=True,
         )
 
     # ============================================================
@@ -268,12 +244,14 @@ class PrimeVulBuilder:
         )
 
         if not scenario_directories:
+
             raise RuntimeError(
                 "No scenario directories found in: "
                 f"{config.DATASET_ROOT}"
             )
 
         if config.SORT_SCENARIOS:
+
             scenario_directories = sorted(
                 scenario_directories,
                 key=lambda path: (
@@ -283,17 +261,8 @@ class PrimeVulBuilder:
 
         if self.logger:
 
-            self.logger.info(
-                "=================================================="
-            )
-
-            self.logger.info(
-                "Starting PrimeVul JSONL build"
-            )
-
-            self.logger.info(
-                f"Dataset root: "
-                f"{config.DATASET_ROOT}"
+            self.logger.start_build(
+                config.DATASET_ROOT
             )
 
             self.logger.info(
@@ -301,30 +270,32 @@ class PrimeVulBuilder:
                 f"{len(scenario_directories)}"
             )
 
-            self.logger.info(
-                "=================================================="
-            )
+        records: list[
+            PrimeVulRecord
+        ] = []
 
-        records = []
+        successful = 0
+        failed = 0
 
-        for scenario_path in (
-            scenario_directories
-        ):
+        for scenario_path in scenario_directories:
 
             try:
 
-                record = (
-                    self._process_scenario(
-                        scenario_path
-                    )
+                record = self._process_scenario(
+                    scenario_path
                 )
 
                 if record is not None:
+
                     records.append(
                         record
                     )
 
+                    successful += 1
+
             except Exception as exc:
+
+                failed += 1
 
                 error_message = (
                     f"{scenario_path.name}: "
@@ -343,6 +314,7 @@ class PrimeVulBuilder:
                     )
 
                 if not config.CONTINUE_ON_ERROR:
+
                     raise
 
         # --------------------------------------------------------
@@ -356,17 +328,15 @@ class PrimeVulBuilder:
             )
 
         # --------------------------------------------------------
-        # Write
+        # Write JSONL
         # --------------------------------------------------------
 
-        output_path = (
-            self.writer.write(
-                records
-            )
+        output_path = self.writer.write(
+            records
         )
 
         # --------------------------------------------------------
-        # Validate
+        # Validate generated JSONL
         # --------------------------------------------------------
 
         validation = (
@@ -390,35 +360,28 @@ class PrimeVulBuilder:
 
         if self.logger:
 
-            self.logger.info(
-                "=================================================="
+            self.logger.build_complete(
+                total_scenarios=len(
+                    scenario_directories
+                ),
+                successful=successful,
+                failed=failed,
+                output_file=output_path,
             )
 
             self.logger.info(
-                "PrimeVul JSONL build completed"
-            )
-
-            self.logger.info(
-                f"Output: {output_path}"
-            )
-
-            self.logger.info(
-                f"Total records: "
+                f"JSONL records validated: "
                 f"{validation['total_records']}"
             )
 
             self.logger.info(
-                f"Vulnerable: "
+                f"Vulnerable records: "
                 f"{validation['vulnerable']}"
             )
 
             self.logger.info(
-                f"Safe: "
+                f"Safe records: "
                 f"{validation['safe']}"
-            )
-
-            self.logger.info(
-                "=================================================="
             )
 
         return output_path
@@ -432,7 +395,23 @@ class PrimeVulBuilder:
         scenario_path: Path,
     ) -> PrimeVulRecord:
         """
-        Process one scenario.
+        Process exactly one scenario.
+
+        The order is intentional:
+
+            metadata
+                ↓
+            scenario.md
+                ↓
+            red SFT
+                ↓
+            target
+                ↓
+            relevant source files
+                ↓
+            PromptBuilder
+                ↓
+            PrimeVulRecord
         """
 
         scenario_name = (
@@ -441,9 +420,8 @@ class PrimeVulBuilder:
 
         if self.logger:
 
-            self.logger.info(
-                f"Processing scenario: "
-                f"{scenario_name}"
+            self.logger.start_scenario(
+                scenario_name
             )
 
         # ========================================================
@@ -462,13 +440,66 @@ class PrimeVulBuilder:
         )
 
         # ========================================================
-        # 2. LOAD SCENARIO
+        # 2. LOAD SCENARIO.MD
         # ========================================================
 
-        scenario = (
-            self.scenario_loader.load(
-                scenario_path
+        if not config.INCLUDE_SCENARIO_CONTEXT:
+
+            raise RuntimeError(
+                "INCLUDE_SCENARIO_CONTEXT=False. "
+                "This dataset requires scenario.md "
+                "application context."
             )
+
+        scenario_context = (
+            self.scenario_loader.load(
+                scenario_path,
+                scenario_id=scenario_name,
+            )
+        )
+
+        if not scenario_context.loaded:
+
+            raise RuntimeError(
+                f"scenario.md was not successfully "
+                f"loaded for {scenario_name}"
+            )
+
+        if not scenario_context.text.strip():
+
+            raise RuntimeError(
+                f"scenario.md produced empty "
+                f"neutral context for {scenario_name}"
+            )
+
+        if self.logger:
+
+            self.logger.info(
+                f"Loaded scenario.md: "
+                f"{scenario_context.source_file}"
+            )
+
+            self.logger.info(
+                f"Scenario context: "
+                f"{len(scenario_context.text):,} characters"
+            )
+
+            self.logger.info(
+                f"Included scenario sections: "
+                f"{scenario_context.included_section_count}"
+            )
+
+            self.logger.info(
+                f"Excluded scenario sections: "
+                f"{scenario_context.excluded_section_count}"
+            )
+
+        # --------------------------------------------------------
+        # Convert canonical ScenarioContext into Scenario.
+        # --------------------------------------------------------
+
+        scenario = Scenario.from_context(
+            scenario_context
         )
 
         # ========================================================
@@ -498,16 +529,22 @@ class PrimeVulBuilder:
                 )
             )
 
+            if self.logger:
+
+                self.logger.info(
+                    f"Loaded "
+                    f"{len(red_examples)} Red SFT "
+                    f"example(s)"
+                )
+
         # ========================================================
         # 4. DETERMINE TARGET
         # ========================================================
 
-        target = (
-            self._determine_target(
-                metadata=metadata,
-                red_examples=red_examples,
-                scenario_path=scenario_path,
-            )
+        target = self._determine_target(
+            metadata=metadata,
+            red_examples=red_examples,
+            scenario_path=scenario_path,
         )
 
         # ========================================================
@@ -521,12 +558,19 @@ class PrimeVulBuilder:
             )
         )
 
+        if not resolved_files:
+
+            raise ValueError(
+                f"No relevant source files resolved "
+                f"for scenario '{scenario_name}'."
+            )
+
         # ========================================================
         # 6. LOAD SOURCE CODE
         # ========================================================
 
         code_files = (
-            self.code_loader.load_files(
+            self.code_loader.load(
                 resolved_files
             )
         )
@@ -538,8 +582,14 @@ class PrimeVulBuilder:
                 f"loaded for scenario '{scenario_name}'."
             )
 
+        if self.logger:
+
+            self.logger.files_loaded(
+                len(code_files)
+            )
+
         # ========================================================
-        # 7. BUILD MODEL PROMPT
+        # 7. BUILD COMPLETE MODEL-VISIBLE PROMPT
         # ========================================================
 
         prompt = (
@@ -549,16 +599,49 @@ class PrimeVulBuilder:
             )
         )
 
+        if prompt is None:
+
+            raise RuntimeError(
+                f"PromptBuilder returned None for "
+                f"{scenario_name}"
+            )
+
+        model_prompt = getattr(
+            prompt,
+            "prompt",
+            None,
+        )
+
+        if not isinstance(
+            model_prompt,
+            str,
+        ) or not model_prompt.strip():
+
+            raise RuntimeError(
+                f"PromptBuilder generated an empty "
+                f"model prompt for {scenario_name}"
+            )
+
+        if self.logger:
+
+            self.logger.prompt_created(
+                len(model_prompt)
+            )
+
         # ========================================================
         # 8. ESTIMATE CONTEXT SIZE
         # ========================================================
+
+        statistics: dict[str, Any] = {}
 
         if config.ENABLE_CONTEXT_ESTIMATION:
 
             statistics = (
                 self.context_estimator.estimate_prompt(
-                    system_prompt=prompt.system,
-                    user_prompt=prompt.user,
+                    system_prompt=(
+                        self.prompt_builder.system_prompt
+                    ),
+                    user_prompt=model_prompt,
                 )
             )
 
@@ -568,7 +651,7 @@ class PrimeVulBuilder:
             )
 
             if (
-                statistics["status"]
+                statistics.get("status")
                 == "OVER_LIMIT"
             ):
 
@@ -580,38 +663,54 @@ class PrimeVulBuilder:
                         f"above the configured limit."
                     )
 
-            # ----------------------------------------------------
-            # Save exact model-visible prompt.
-            # ----------------------------------------------------
-
-            if config.SAVE_DEBUG_PROMPTS:
-
-                self._save_debug_prompt(
-                    scenario_name=scenario_name,
-                    prompt=prompt,
-                    statistics=statistics,
-                )
-
         # ========================================================
-        # 9. CREATE PRIMEVUL RECORD
+        # 9. SAVE EXACT MODEL-VISIBLE DEBUG PROMPT
         # ========================================================
 
-        record = (
-            self._create_record(
-                scenario_path=scenario_path,
-                metadata=metadata,
-                target=target,
-                code_files=code_files,
+        if config.SAVE_DEBUG_PROMPTS:
+
+            self._save_debug_prompt(
+                scenario_name=scenario_name,
+                prompt=prompt,
+                statistics=statistics,
             )
+
+        # ========================================================
+        # 10. CREATE PRIMEVUL RECORD
+        # ========================================================
+
+        record = self._create_record(
+            scenario_path=scenario_path,
+            metadata=metadata,
+            target=target,
+            prompt=prompt,
         )
 
         if self.logger:
 
-            self.logger.info(
-                f"Completed: "
-                f"{scenario_name} | "
-                f"target={target} | "
-                f"source_files={len(code_files)}"
+            self.logger.scenario_summary(
+                scenario_name=scenario_name,
+                relevant_files=len(
+                    code_files
+                ),
+                target=target,
+                cwe=self._format_cwe(
+                    metadata.cwe_reference
+                ),
+                code_characters=sum(
+                    len(
+                        getattr(
+                            code_file,
+                            "content",
+                            "",
+                        )
+                    )
+                    for code_file in code_files
+                ),
+            )
+
+            self.logger.scenario_complete(
+                scenario_name
             )
 
         return record
@@ -629,39 +728,13 @@ class PrimeVulBuilder:
         """
         Determine the binary PrimeVul classification label.
 
-        Target:
+        1 = vulnerable
+        0 = non-vulnerable
 
-            1 = vulnerable
-            0 = not vulnerable
+        Ground truth is builder-side only.
 
-        IMPORTANT
-        ---------
-        The metadata.json is authoritative.
-
-        We DO NOT use:
-
-            red_sft.json existence
-            red reasoning
-            attack existence
-            absence of a vulnerability field
-
-        as an automatic label.
-
-        We specifically look for an explicit vulnerability
-        declaration in metadata.
-
-        Therefore:
-
-            explicit vulnerable
-                -> 1
-
-            explicit NOT vulnerable
-                -> 0
-
-            ambiguous
-                -> ERROR
-
-        This prevents silent label contamination.
+        Red SFT is deliberately NOT used as an automatic target
+        source. Its existence does not imply vulnerability.
         """
 
         raw_data = getattr(
@@ -677,7 +750,7 @@ class PrimeVulBuilder:
             raw_data = {}
 
         # --------------------------------------------------------
-        # 1. Check explicit boolean vulnerability fields.
+        # Explicit boolean vulnerability state
         # --------------------------------------------------------
 
         explicit_boolean = (
@@ -688,13 +761,14 @@ class PrimeVulBuilder:
 
         if explicit_boolean is not None:
 
-            if explicit_boolean:
-                return config.VULNERABLE_LABEL
-
-            return config.NOT_VULNERABLE_LABEL
+            return (
+                config.VULNERABLE_LABEL
+                if explicit_boolean
+                else config.NOT_VULNERABLE_LABEL
+            )
 
         # --------------------------------------------------------
-        # 2. Check explicit textual vulnerability status.
+        # Explicit textual vulnerability state
         # --------------------------------------------------------
 
         explicit_status = (
@@ -712,11 +786,7 @@ class PrimeVulBuilder:
             return config.NOT_VULNERABLE_LABEL
 
         # --------------------------------------------------------
-        # 3. Fall back to explicit vulnerability objects.
-        #
-        # This is ONLY used when the metadata schema represents
-        # vulnerability information as an explicit non-empty
-        # vulnerabilities list.
+        # Explicit vulnerability objects
         # --------------------------------------------------------
 
         vulnerabilities = getattr(
@@ -725,18 +795,18 @@ class PrimeVulBuilder:
             None,
         )
 
-        if isinstance(
-            vulnerabilities,
-            list,
-        ) and vulnerabilities:
+        if (
+            isinstance(
+                vulnerabilities,
+                list,
+            )
+            and vulnerabilities
+        ):
 
             return config.VULNERABLE_LABEL
 
         # --------------------------------------------------------
-        # 4. Explicit optimal attack.
-        #
-        # An explicit optimal attack means this scenario has a
-        # defined vulnerability/attack ground truth.
+        # Explicit optimal attack
         # --------------------------------------------------------
 
         optimal_attack = getattr(
@@ -753,39 +823,109 @@ class PrimeVulBuilder:
             and optimal_attack.strip()
         ):
 
+            normalized = (
+                self._normalize_attack_label(
+                    optimal_attack
+                )
+            )
+
+            if normalized in {
+                "none",
+                "no_attack",
+                "no_exploitable_vulnerability",
+                "no_exploitable_vulnerabilities",
+                "not_vulnerable",
+                "non_vulnerable",
+                "safe",
+            }:
+
+                return config.NOT_VULNERABLE_LABEL
+
             return config.VULNERABLE_LABEL
 
         # --------------------------------------------------------
-        # 5. Do NOT use Red SFT to infer target.
+        # Explicit classification dictionary
         # --------------------------------------------------------
 
-        # red_examples intentionally not used here.
-        #
-        # Red SFT is validation/supporting information.
-        # It is not the label source.
-        #
-        # This prevents:
-        #
-        #     red_sft.json exists
-        #             ↓
-        #          target = 1
-        #
-        # which would be wrong for your safe scenarios if they
-        # also contain Red SFT examples.
-
-        scenario_name = (
-            scenario_path.name
+        classification = raw_data.get(
+            "classification"
         )
+
+        if isinstance(
+            classification,
+            dict,
+        ):
+
+            classification_value = (
+                classification.get(
+                    "label"
+                )
+                or classification.get(
+                    "ground_truth"
+                )
+                or classification.get(
+                    "status"
+                )
+            )
+
+            if isinstance(
+                classification_value,
+                str,
+            ):
+
+                normalized = (
+                    self._normalize_attack_label(
+                        classification_value
+                    )
+                )
+
+                if normalized in {
+                    "safe",
+                    "non_vulnerable",
+                    "not_vulnerable",
+                    "no_vulnerability",
+                    "none",
+                }:
+
+                    return (
+                        config.NOT_VULNERABLE_LABEL
+                    )
+
+                if normalized in {
+                    "vulnerable",
+                }:
+
+                    return (
+                        config.VULNERABLE_LABEL
+                    )
+
+        # --------------------------------------------------------
+        # DO NOT infer from Red SFT.
+        # --------------------------------------------------------
+
+        # This variable is intentionally unused here.
+        #
+        # Red SFT is useful for consistency validation, but:
+        #
+        #     red_sft exists
+        #          !=
+        #     vulnerable
+        #
+        # A safe scenario may legitimately have a Red SFT
+        # representation whose attack label is
+        # no_exploitable_vulnerability.
+
+        _ = red_examples
 
         raise ValueError(
             "Could not determine an explicit vulnerability "
-            f"label for scenario '{scenario_name}'. "
+            f"label for scenario '{scenario_path.name}'. "
             "metadata.json must explicitly state whether "
             "the scenario is vulnerable or not vulnerable."
         )
 
     # ============================================================
-    # FIND EXPLICIT BOOLEAN STATUS
+    # BOOLEAN STATUS SEARCH
     # ============================================================
 
     def _find_explicit_boolean_status(
@@ -793,28 +933,7 @@ class PrimeVulBuilder:
         data: dict[str, Any],
     ) -> Optional[bool]:
         """
-        Search metadata recursively for explicit boolean
-        vulnerability-status fields.
-
-        Supported examples:
-
-            {
-                "vulnerable": true
-            }
-
-            {
-                "is_vulnerable": false
-            }
-
-            {
-                "has_vulnerability": false
-            }
-
-            {
-                "contains_vulnerability": false
-            }
-
-        Only recognized field names are considered.
+        Recursively find explicit boolean vulnerability state.
         """
 
         boolean_keys = {
@@ -842,6 +961,7 @@ class PrimeVulBuilder:
                     value,
                     bool,
                 ):
+
                     return value
 
             if isinstance(
@@ -882,7 +1002,7 @@ class PrimeVulBuilder:
         return None
 
     # ============================================================
-    # FIND EXPLICIT TEXT STATUS
+    # TEXT STATUS SEARCH
     # ============================================================
 
     def _find_explicit_status(
@@ -890,21 +1010,7 @@ class PrimeVulBuilder:
         data: dict[str, Any],
     ) -> Optional[str]:
         """
-        Search metadata recursively for an explicit textual
-        vulnerability status.
-
-        Recognized examples:
-
-            "vulnerability_status": "not vulnerable"
-
-            "status": "safe"
-
-            "vulnerability": "none"
-
-            "vulnerability": "not present"
-
-        Only values attached to vulnerability/status-related
-        keys are considered.
+        Recursively find explicit textual vulnerability status.
         """
 
         status_keys = {
@@ -914,6 +1020,7 @@ class PrimeVulBuilder:
             "vulnerability_type",
             "security_status",
             "status",
+            "classification",
         }
 
         for key, value in data.items():
@@ -980,7 +1087,7 @@ class PrimeVulBuilder:
         return None
 
     # ============================================================
-    # NORMALIZE TEXT STATUS
+    # NORMALIZE VULNERABILITY STATUS
     # ============================================================
 
     def _normalize_vulnerability_status(
@@ -988,17 +1095,13 @@ class PrimeVulBuilder:
         value: str,
     ) -> Optional[str]:
         """
-        Normalize explicit vulnerability-status text.
+        Normalize explicit vulnerability state.
 
         Returns:
 
             vulnerable
             not_vulnerable
             None
-
-        IMPORTANT:
-        This function only recognizes explicit statements.
-        It does not interpret an absent field as "safe".
         """
 
         normalized = (
@@ -1009,43 +1112,40 @@ class PrimeVulBuilder:
 
         normalized = (
             normalized
-            .replace("_", " ")
-            .replace("-", " ")
+            .replace(
+                "_",
+                " ",
+            )
+            .replace(
+                "-",
+                " ",
+            )
         )
 
         normalized = " ".join(
             normalized.split()
         )
 
-        # --------------------------------------------------------
-        # Explicit negative states
-        # --------------------------------------------------------
-
         negative_values = {
             "not vulnerable",
             "non vulnerable",
-            "non-vulnerable",
             "no vulnerability",
             "no vulnerabilities",
             "vulnerability absent",
             "vulnerability not present",
-            "vulnerability is absent",
-            "vulnerability is not present",
             "safe",
             "secure",
             "benign",
             "none",
             "false",
             "no",
+            "no exploitable vulnerability",
+            "no exploitable vulnerabilities",
         }
 
         if normalized in negative_values:
 
             return "not_vulnerable"
-
-        # --------------------------------------------------------
-        # Explicit positive states
-        # --------------------------------------------------------
 
         positive_values = {
             "vulnerable",
@@ -1053,8 +1153,8 @@ class PrimeVulBuilder:
             "vulnerability exists",
             "vulnerability detected",
             "vulnerability confirmed",
-            "yes",
             "true",
+            "yes",
         }
 
         if normalized in positive_values:
@@ -1062,6 +1162,45 @@ class PrimeVulBuilder:
             return "vulnerable"
 
         return None
+
+    # ============================================================
+    # NORMALIZE ATTACK LABEL
+    # ============================================================
+
+    def _normalize_attack_label(
+        self,
+        value: str,
+    ) -> str:
+        """
+        Normalize an attack/classification label.
+        """
+
+        normalized = (
+            value
+            .strip()
+            .lower()
+        )
+
+        normalized = (
+            normalized
+            .replace(
+                "_",
+                " ",
+            )
+            .replace(
+                "-",
+                " ",
+            )
+        )
+
+        normalized = " ".join(
+            normalized.split()
+        )
+
+        return normalized.replace(
+            " ",
+            "_",
+        )
 
     # ============================================================
     # CREATE PRIMEVUL RECORD
@@ -1072,17 +1211,48 @@ class PrimeVulBuilder:
         scenario_path: Path,
         metadata: Metadata,
         target: int,
-        code_files: list,
+        prompt,
     ) -> PrimeVulRecord:
         """
         Create the final PrimeVul-style record.
+
+        CRITICAL:
+
+        `func` is the exact model-visible prompt produced by
+        PromptBuilder.
+
+        This is NOT reconstructed from source code.
+
+        Therefore scenario.md context survives into the final
+        JSONL record.
         """
 
-        func = (
-            self._build_function_context(
-                code_files
+        if prompt is None:
+
+            raise ValueError(
+                f"Prompt is missing for "
+                f"{scenario_path.name}"
             )
+
+        func = getattr(
+            prompt,
+            "prompt",
+            None,
         )
+
+        if not isinstance(
+            func,
+            str,
+        ) or not func.strip():
+
+            raise ValueError(
+                f"PromptBuilder produced an empty "
+                f"model input for {scenario_path.name}"
+            )
+
+        # --------------------------------------------------------
+        # CWE is metadata, not prompt content.
+        # --------------------------------------------------------
 
         cwe = getattr(
             metadata,
@@ -1090,16 +1260,30 @@ class PrimeVulBuilder:
             None,
         )
 
-        description = getattr(
-            metadata,
-            "description",
-            None,
-        )
+        # --------------------------------------------------------
+        # IMPORTANT:
+        #
+        # Do NOT copy metadata.description into cve_desc.
+        #
+        # Your custom vulnerability descriptions can contain
+        # the exact answer and therefore must not become part of
+        # any model-visible field.
+        #
+        # cve_desc is retained as None unless you later introduce
+        # a genuinely CVE-derived description.
+        # --------------------------------------------------------
+
+        cve_desc = None
 
         project = (
             getattr(
                 metadata,
                 "scenario_name",
+                None,
+            )
+            or getattr(
+                metadata,
+                "name",
                 None,
             )
             or scenario_path.name
@@ -1130,51 +1314,8 @@ class PrimeVulBuilder:
             func=func,
             cwe=cwe,
             cve=cve,
-            cve_desc=description,
+            cve_desc=cve_desc,
             scenario_id=scenario_path.name,
-        )
-
-    # ============================================================
-    # BUILD SOURCE-CODE CONTEXT
-    # ============================================================
-
-    def _build_function_context(
-        self,
-        code_files: list,
-    ) -> str:
-        """
-        Combine all relevant source files into the PrimeVul
-        `func` field.
-
-        Each file is explicitly delimited.
-        """
-
-        blocks = []
-
-        for code_file in code_files:
-
-            relative_path = (
-                code_file.relative_path
-            )
-
-            content = (
-                code_file.content
-            )
-
-            blocks.append(
-                f"## FILE: {relative_path}\n\n"
-                f"{content}"
-            )
-
-        if not blocks:
-
-            raise ValueError(
-                "Cannot construct PrimeVul `func`: "
-                "no source code was loaded."
-            )
-
-        return "\n\n".join(
-            blocks
         )
 
     # ============================================================
@@ -1185,25 +1326,28 @@ class PrimeVulBuilder:
         self,
         scenario_name: str,
         prompt,
-        statistics: dict,
+        statistics: dict[str, Any],
     ) -> None:
         """
-        Save the exact prompt presented to the model.
+        Save the exact model-visible prompt.
 
-        IMPORTANT:
-        This debug file contains model-visible information only.
+        This file intentionally contains only:
+
+            SYSTEM PROMPT
+            +
+            USER PROMPT
+            +
+            prompt statistics
+
+        It does NOT contain metadata.json or Red SFT data.
         """
 
-        debug_directory = (
-            ensure_directory(
-                config.DEBUG_DIR
-            )
+        debug_directory = ensure_directory(
+            config.DEBUG_DIR
         )
 
-        safe_name = (
-            self._safe_name(
-                scenario_name
-            )
+        safe_name = self._safe_name(
+            scenario_name
         )
 
         prompt_path = (
@@ -1211,16 +1355,32 @@ class PrimeVulBuilder:
             / f"{safe_name}.txt"
         )
 
+        model_prompt = getattr(
+            prompt,
+            "prompt",
+            None,
+        )
+
+        if not isinstance(
+            model_prompt,
+            str,
+        ):
+
+            raise ValueError(
+                f"Cannot save debug prompt for "
+                f"{scenario_name}: invalid prompt."
+            )
+
         content = (
             "==================================================\n"
             "SYSTEM PROMPT\n"
             "==================================================\n\n"
-            f"{prompt.system}\n\n"
+            f"{self.prompt_builder.system_prompt}\n\n"
 
             "==================================================\n"
-            "USER PROMPT\n"
+            "USER PROMPT / MODEL INPUT\n"
             "==================================================\n\n"
-            f"{prompt.user}\n\n"
+            f"{model_prompt}\n\n"
 
             "==================================================\n"
             "ESTIMATED CONTEXT STATISTICS\n"
@@ -1233,16 +1393,23 @@ class PrimeVulBuilder:
             encoding="utf-8",
         )
 
+        if self.logger:
+
+            self.logger.info(
+                f"Saved debug prompt: "
+                f"{prompt_path}"
+            )
+
     # ============================================================
-    # SAFE DEBUG NAME
+    # SAFE DEBUG FILENAME
     # ============================================================
 
+    @staticmethod
     def _safe_name(
-        self,
         value: str,
     ) -> str:
         """
-        Make a safe filename for debug output.
+        Make a safe filesystem name.
         """
 
         unsafe = (
@@ -1261,6 +1428,39 @@ class PrimeVulBuilder:
         return result.strip()
 
     # ============================================================
+    # CWE FORMATTER
+    # ============================================================
+
+    @staticmethod
+    def _format_cwe(
+        cwe: Any,
+    ) -> Optional[str]:
+        """
+        Format CWE metadata for logging only.
+        """
+
+        if cwe is None:
+
+            return None
+
+        if isinstance(
+            cwe,
+            list,
+        ):
+
+            values = [
+                str(item)
+                for item in cwe
+                if item is not None
+            ]
+
+            return ", ".join(
+                values
+            ) or None
+
+        return str(cwe)
+
+    # ============================================================
     # CONFIGURATION VALIDATION
     # ============================================================
 
@@ -1268,8 +1468,7 @@ class PrimeVulBuilder:
         self,
     ) -> None:
         """
-        Validate required paths and prompt structure before
-        starting the build.
+        Validate required paths before starting the build.
         """
 
         # --------------------------------------------------------
@@ -1313,7 +1512,7 @@ class PrimeVulBuilder:
             )
 
         # --------------------------------------------------------
-        # Prompt placeholders
+        # Prompt template validation
         # --------------------------------------------------------
 
         template = read_text(
@@ -1341,12 +1540,39 @@ class PrimeVulBuilder:
             )
 
         # --------------------------------------------------------
-        # Output
+        # Output directory
         # --------------------------------------------------------
 
         ensure_directory(
             config.OUTPUT_DIR
         )
+
+        # --------------------------------------------------------
+        # Debug directory
+        # --------------------------------------------------------
+
+        if config.SAVE_DEBUG_PROMPTS:
+
+            ensure_directory(
+                config.DEBUG_DIR
+            )
+
+        # --------------------------------------------------------
+        # Log directory
+        # --------------------------------------------------------
+
+        log_file = getattr(
+            config,
+            "LOG_FILE",
+            None,
+        )
+
+        if log_file is not None:
+
+            Path(log_file).parent.mkdir(
+                parents=True,
+                exist_ok=True,
+            )
 
 
 # ============================================================
@@ -1359,19 +1585,28 @@ def main() -> int:
     Command-line entry point.
     """
 
-    logger = Logger()
+    # IMPORTANT:
+    #
+    # Previously this was:
+    #
+    #     Logger()
+    #
+    # which meant config.LOG_FILE was never used.
+    #
+    # This is why output/logs/build.log was not being created.
+
+    logger = Logger(
+        name="PrimeVulBuilder",
+        log_file=config.LOG_FILE,
+    )
 
     try:
 
-        builder = (
-            PrimeVulBuilder(
-                logger=logger
-            )
+        builder = PrimeVulBuilder(
+            logger=logger
         )
 
-        output_path = (
-            builder.build()
-        )
+        output_path = builder.build()
 
         print(
             "\nPrimeVul dataset created:"
@@ -1405,6 +1640,7 @@ def main() -> int:
 
 
 if __name__ == "__main__":
+
     sys.exit(
         main()
     )

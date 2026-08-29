@@ -1,147 +1,239 @@
-from pathlib import Path
+from __future__ import annotations
 
-from .models import Scenario
+import re
+from pathlib import Path
+from typing import Optional
+
+from .models import ScenarioContext, ScenarioSection
 
 
 class ScenarioLoader:
     """
-    Loads and parses scenario.md for the PrimeVul builder.
+    Loads scenario.md and produces the model-visible application
+    context.
 
-    Responsibilities
-    ----------------
-    - Read scenario.md
-    - Parse Markdown sections
-    - Identify neutral application context
-    - Exclude vulnerability/ground-truth information
-    - Return a Scenario object
+    Architecture
+    ------------
 
-    Important
+        scenario.md
+             |
+             v
+        ScenarioLoader
+             |
+             +--> remove explicit answer sections
+             |
+             +--> reject obvious answer leakage
+             |
+             v
+        ScenarioContext
+             |
+             v
+        PromptBuilder
+             |
+             v
+        JSONL `func`
+
+    IMPORTANT
     ---------
-    The complete scenario.md is NOT automatically exposed to
-    the model.
 
-    Only sections explicitly allowed by the builder configuration
-    are included in Scenario.neutral_sections.
+    metadata.json and red_sft.json are NOT read here.
 
-    Ground-truth sections such as:
-        - Expected Attack
-        - Vulnerability
+    This loader is responsible only for scenario.md.
+
+    Ground-truth fields such as:
+
+        - target
+        - optimal_attack
+        - optimal_defense
         - CWE
-        - Injection Point
-        - Sink
-        - Attack Path
-        - Ground Truth
+        - ground_truth
+        - expected classification
+        - attack path
+        - remediation
 
-    are never included in model-visible context.
+    must never be included in the model-visible context.
     """
 
     # ============================================================
-    # DEFAULT SAFE SECTIONS
+    # EXPLICITLY EXCLUDED HEADINGS
     # ============================================================
 
-    DEFAULT_ALLOWED_SECTIONS = {
-        "description",
-        "overview",
-        "application overview",
-        "application description",
-        "technology stack",
-        "technologies",
-        "architecture",
-        "system architecture",
-        "business workflow",
-        "workflow",
-        "normal workflow",
-        "application workflow",
-        "trust boundary",
-        "security model",
-        "security architecture",
-    }
-
-    # ============================================================
-    # DEFAULT EXCLUDED SECTIONS
-    # ============================================================
-
-    DEFAULT_EXCLUDED_SECTIONS = {
-        "expected attack",
-        "optimal attack",
-        "primary vulnerability",
+    EXCLUDED_HEADINGS = {
+        "classification",
+        "classification label",
+        "scenario type",
+        "expected classifier output",
+        "expected classification",
+        "ground truth",
+        "ground truth label",
+        "ground truth classification",
         "vulnerability",
-        "known vulnerability",
-        "cwe",
-        "cwe reference",
-        "injection point",
-        "sink",
-        "source",
+        "vulnerabilities",
+        "vulnerability details",
+        "attack",
+        "attacks",
         "attack path",
-        "attack chain",
-        "attack preconditions",
-        "broken assumption",
+        "attack paths",
+        "expected attack",
+        "expected attacks",
+        "optimal attack",
+        "optimal attacks",
         "optimal defense",
+        "optimal defenses",
         "valid attacks",
         "valid defenses",
-        "ground truth",
-        "security finding",
-        "finding",
+        "competing hypotheses",
         "exploit",
+        "exploits",
+        "exploit path",
+        "exploit paths",
         "exploitation",
+        "red team",
+        "red sft",
+        "blue team",
+        "blue sft",
+        "labels",
+        "dataset labels",
+        "security verdict",
+        "security classification",
+        "expected remediation",
+        "remediation",
+        "defense",
+        "defenses",
+        "countermeasures",
     }
 
     # ============================================================
-    # INITIALIZATION
+    # SECURITY-CONCLUSION HEADINGS
+    # ============================================================
+
+    SECURITY_CONCLUSION_HEADINGS = {
+        "security properties",
+        "security invariants",
+        "security guarantees",
+        "security requirements",
+        "security controls",
+        "prohibited vulnerabilities",
+        "attack surface",
+        "expected attack path",
+        "expected remediation",
+        "root cause",
+        "impact",
+        "remediation",
+        "defense",
+        "defenses",
+        "countermeasures",
+        "expected security outcome",
+        "security outcome",
+        "ground truth",
+    }
+
+    # ============================================================
+    # NORMAL APPLICATION-CONTEXT HEADINGS
+    # ============================================================
+
+    ALLOWED_HEADINGS = {
+        "overview",
+        "description",
+        "components",
+        "component",
+        "technology stack",
+        "technology",
+        "technologies",
+        "languages",
+        "language",
+        "frameworks",
+        "framework",
+        "architecture",
+        "workflow",
+        "core workflow",
+        "process",
+        "trust boundary",
+        "trust boundaries",
+        "security model",
+        "system model",
+        "application model",
+        "data flow",
+        "request flow",
+        "deployment model",
+        "environment",
+        "business context",
+        "business domain",
+        "domain",
+        "interfaces",
+        "services",
+        "service",
+        "data model",
+        "dependencies",
+        "configuration",
+        "modules",
+        "module",
+        "operations",
+        "operation",
+        "api",
+        "apis",
+        "inputs",
+        "outputs",
+        "storage",
+        "database",
+        "databases",
+        "integration",
+        "integrations",
+        "system behavior",
+        "application behavior",
+        "workflow steps",
+    }
+
+    # ============================================================
+    # CONTENT-LEVEL LEAKAGE MARKERS
+    #
+    # These are deliberately explicit. We do NOT reject ordinary
+    # words such as "attack" when they occur naturally in prose.
+    # ============================================================
+
+    ANSWER_LEAKAGE_PATTERNS = [
+        r"\bexpected\s+classifier\s+output\s*:",
+        r"\bexpected\s+classification\s*:",
+        r"\bclassification\s+label\s*:",
+        r"\bground[_\s-]*truth\s*:",
+        r"\boptimal[_\s-]*attack\s*:",
+        r"\boptimal[_\s-]*defense\s*:",
+        r"\bvalid[_\s-]*attacks\s*:",
+        r"\bvalid[_\s-]*defenses\s*:",
+        r"\bexpected[_\s-]*attack\s*:",
+        r"\bexpected[_\s-]*defense\s*:",
+        r"\bexpected[_\s-]*remediation\s*:",
+        r"\bdataset[_\s-]*labels?\s*:",
+        r"\bsecurity\s+verdict\s*:",
+        r"\bsecurity\s+classification\s*:",
+        r"\broot[_\s-]*cause\s*:",
+        r"\battack[_\s-]*path\s*:",
+        r"\bexploit[_\s-]*path\s*:",
+        r"\bno[_\s-]*exploitable[_\s-]*vulnerabilit(?:y|ies)\b",
+        r"\bno[_\s-]*vulnerability\b",
+        r"\bnon[_\s-]*vulnerable\b",
+        r"\bis[_\s-]*vulnerable\s*:",
+        r"\bvulnerability[_\s-]*count\s*:",
+    ]
+
+    # ============================================================
+    # CONSTRUCTOR
     # ============================================================
 
     def __init__(
         self,
-        logger=None,
-        allowed_sections=None,
-        excluded_sections=None,
-    ):
-        """
-        Parameters
-        ----------
-        logger:
-            Optional Logger instance.
+        *,
+        include_allowed_only: bool = True,
+        reject_content_leakage: bool = True,
+    ) -> None:
 
-        allowed_sections:
-            Sections that are allowed to become model-visible
-            application context.
+        self.include_allowed_only = (
+            include_allowed_only
+        )
 
-            If None, DEFAULT_ALLOWED_SECTIONS is used.
-
-        excluded_sections:
-            Sections that must never become model-visible.
-
-            If None, DEFAULT_EXCLUDED_SECTIONS is used.
-
-        Explicit exclusions ALWAYS take priority over allowed
-        sections.
-        """
-
-        self.logger = logger
-
-        if allowed_sections is None:
-            allowed_sections = (
-                self.DEFAULT_ALLOWED_SECTIONS
-            )
-
-        if excluded_sections is None:
-            excluded_sections = (
-                self.DEFAULT_EXCLUDED_SECTIONS
-            )
-
-        self.allowed_sections = {
-            self._normalize_heading(
-                heading
-            )
-            for heading in allowed_sections
-        }
-
-        self.excluded_sections_set = {
-            self._normalize_heading(
-                heading
-            )
-            for heading in excluded_sections
-        }
+        self.reject_content_leakage = (
+            reject_content_leakage
+        )
 
     # ============================================================
     # PUBLIC API
@@ -149,530 +241,525 @@ class ScenarioLoader:
 
     def load(
         self,
-        scenario_path: Path,
-    ) -> Scenario:
+        scenario_dir: Path,
+        scenario_id: Optional[str] = None,
+    ) -> ScenarioContext:
         """
-        Load scenario.md from a scenario directory.
+        Load scenario.md from the supplied scenario directory.
 
-        Parameters
-        ----------
-        scenario_path:
-            Path to the scenario directory.
-
-        Returns
-        -------
-        Scenario
-            Parsed scenario containing:
-                - all sections
-                - neutral model-safe sections
-                - original Markdown
+        The resulting ScenarioContext contains ONLY the neutral
+        scenario context selected from scenario.md.
         """
 
-        scenario_path = Path(
-            scenario_path
+        scenario_dir = Path(
+            scenario_dir
         )
 
-        if not scenario_path.exists():
-            raise FileNotFoundError(
-                f"Scenario directory not found: "
-                f"{scenario_path}"
-            )
-
-        if not scenario_path.is_dir():
-            raise ValueError(
-                f"Scenario path is not a directory: "
-                f"{scenario_path}"
-            )
+        if scenario_id is None:
+            scenario_id = scenario_dir.name
 
         scenario_file = (
-            scenario_path / "scenario.md"
+            scenario_dir / "scenario.md"
         )
 
         if not scenario_file.exists():
-            raise FileNotFoundError(
-                f"scenario.md not found in: "
-                f"{scenario_path}"
-            )
 
-        if not scenario_file.is_file():
-            raise ValueError(
-                f"scenario.md is not a file: "
+            raise FileNotFoundError(
+                f"scenario.md not found: "
                 f"{scenario_file}"
             )
 
-        raw_markdown = self._read_file(
-            scenario_file
+        if not scenario_file.is_file():
+
+            raise ValueError(
+                f"scenario.md is not a regular file: "
+                f"{scenario_file}"
+            )
+
+        raw_text = scenario_file.read_text(
+            encoding="utf-8",
+            errors="replace",
         )
+
+        if not raw_text.strip():
+
+            raise ValueError(
+                f"scenario.md is empty: "
+                f"{scenario_file}"
+            )
 
         sections = self._parse_sections(
-            raw_markdown
+            raw_text
         )
 
-        neutral_sections = (
+        if not sections:
+
+            raise ValueError(
+                f"scenario.md contains no Markdown "
+                f"sections: {scenario_file}"
+            )
+
+        selected_sections = (
             self._select_neutral_sections(
                 sections
             )
         )
 
-        scenario = Scenario(
-            scenario_name=scenario_path.name,
-            sections=sections,
-            neutral_sections=neutral_sections,
-            raw_markdown=raw_markdown,
-        )
-
-        if self.logger:
-
-            self.logger.info(
-                f"Loaded scenario: "
-                f"{scenario_path.name}"
-            )
-
-            self.logger.info(
-                f"Total scenario sections: "
-                f"{len(sections)}"
-            )
-
-            self.logger.info(
-                f"Neutral sections included: "
-                f"{len(neutral_sections)}"
-            )
-
-            excluded = (
-                self.excluded_sections(
-                    scenario
-                )
-            )
-
-            if excluded:
-                self.logger.info(
-                    "Excluded scenario sections: "
-                    + ", ".join(excluded)
-                )
-
-        return scenario
-
-    # ============================================================
-    # FILE READING
-    # ============================================================
-
-    def _read_file(
-        self,
-        path: Path,
-    ) -> str:
-        """
-        Read scenario.md as UTF-8 text.
-        """
-
-        try:
-
-            return path.read_text(
-                encoding="utf-8"
-            )
-
-        except UnicodeDecodeError as exc:
+        if not selected_sections:
 
             raise ValueError(
-                f"Could not decode scenario file "
-                f"as UTF-8: {path}"
-            ) from exc
+                f"No neutral application-context "
+                f"sections found in scenario.md: "
+                f"{scenario_file}"
+            )
 
-        except OSError as exc:
+        # --------------------------------------------------------
+        # Content-level leakage check.
+        #
+        # If the surviving context contains an explicit answer
+        # marker, FAIL rather than silently producing a poisoned
+        # training sample.
+        # --------------------------------------------------------
 
-            raise OSError(
-                f"Could not read scenario file: "
-                f"{path}\n{exc}"
-            ) from exc
+        if self.reject_content_leakage:
+
+            self._validate_no_answer_leakage(
+                selected_sections,
+                scenario_file,
+            )
+
+        context_text = (
+            self._render_context(
+                selected_sections
+            )
+        )
+
+        if not context_text.strip():
+
+            raise ValueError(
+                f"scenario.md produced empty "
+                f"model-visible context: "
+                f"{scenario_file}"
+            )
+
+        return ScenarioContext(
+            scenario_id=scenario_id,
+            sections=selected_sections,
+            text=context_text,
+            loaded=True,
+            source_file=str(
+                scenario_file
+            ),
+        )
 
     # ============================================================
-    # MARKDOWN PARSER
+    # MARKDOWN PARSING
     # ============================================================
 
     def _parse_sections(
         self,
-        markdown: str,
-    ) -> dict[str, str]:
+        text: str,
+    ) -> list[ScenarioSection]:
         """
-        Parse Markdown headings into a dictionary.
+        Parse Markdown ATX headings.
 
         Supports:
 
             # Heading
             ## Heading
             ### Heading
+            ...
 
-        Content continues until the next Markdown heading.
-
-        Example:
-
-            ## Architecture
-
-            The backend contains...
-
-            ## Workflow
-
-            The user first...
-
-        becomes:
-
-            {
-                "Architecture":
-                    "The backend contains...",
-
-                "Workflow":
-                    "The user first..."
-            }
+        Content continues until the next heading.
         """
 
-        sections: dict[str, str] = {}
+        lines = text.splitlines()
 
-        current_heading = None
+        sections: list[ScenarioSection] = []
+
+        current_heading: Optional[str] = None
+
+        current_level = 2
+
         current_content: list[str] = []
 
-        lines = markdown.splitlines()
+        def flush() -> None:
 
-        for line in lines:
+            nonlocal current_heading
+            nonlocal current_level
+            nonlocal current_content
 
-            stripped = line.strip()
-
-            # ----------------------------------------------------
-            # Markdown heading
-            # ----------------------------------------------------
-
-            if stripped.startswith("#"):
-
-                heading = (
-                    stripped
-                    .lstrip("#")
-                    .strip()
-                )
-
-                if not heading:
-                    continue
-
-                # Save previous section.
-                if current_heading is not None:
-
-                    content = (
-                        self._clean_content(
-                            current_content
-                        )
-                    )
-
-                    sections[
-                        current_heading
-                    ] = content
-
-                current_heading = heading
-                current_content = []
-
-            else:
-
-                if current_heading is not None:
-                    current_content.append(
-                        line
-                    )
-
-        # --------------------------------------------------------
-        # Save final section.
-        # --------------------------------------------------------
-
-        if current_heading is not None:
+            if current_heading is None:
+                return
 
             content = (
-                self._clean_content(
+                "\n".join(
                     current_content
+                ).strip()
+            )
+
+            sections.append(
+                ScenarioSection(
+                    heading=current_heading,
+                    content=content,
+                    level=current_level,
                 )
             )
 
-            sections[
-                current_heading
-            ] = content
+            current_heading = None
+            current_content = []
+
+        for line in lines:
+
+            heading_match = re.match(
+                r"^\s*(#{1,6})\s+(.+?)\s*$",
+                line,
+            )
+
+            if heading_match:
+
+                flush()
+
+                hashes = (
+                    heading_match.group(1)
+                )
+
+                heading = (
+                    heading_match.group(2)
+                )
+
+                heading = re.sub(
+                    r"\s+#+\s*$",
+                    "",
+                    heading,
+                ).strip()
+
+                current_heading = (
+                    heading
+                )
+
+                current_level = len(
+                    hashes
+                )
+
+            else:
+
+                current_content.append(
+                    line
+                )
+
+        flush()
 
         return sections
 
     # ============================================================
-    # CONTENT CLEANING
+    # HEADING NORMALIZATION
     # ============================================================
 
-    def _clean_content(
-        self,
-        lines: list[str],
-    ) -> str:
-        """
-        Remove excessive blank lines while preserving
-        scenario content.
-        """
-
-        cleaned = []
-
-        previous_blank = False
-
-        for line in lines:
-
-            line = line.rstrip()
-
-            if not line.strip():
-
-                if not previous_blank:
-                    cleaned.append("")
-
-                previous_blank = True
-
-            else:
-
-                cleaned.append(
-                    line
-                )
-
-                previous_blank = False
-
-        return "\n".join(
-            cleaned
-        ).strip()
-
-    # ============================================================
-    # SECTION NORMALIZATION
-    # ============================================================
-
+    @staticmethod
     def _normalize_heading(
-        self,
         heading: str,
     ) -> str:
         """
-        Normalize a heading before comparison.
-
-        Examples:
-
-            "Architecture:"
-            "architecture"
-            "  ARCHITECTURE  "
-
-        all become:
-
-            "architecture"
+        Normalize Markdown heading text for comparison.
         """
 
         normalized = (
             heading
-            .lower()
             .strip()
+            .lower()
         )
 
-        normalized = normalized.rstrip(
-            ":.-_"
+        # Remove Markdown formatting.
+        normalized = normalized.replace(
+            "`",
+            "",
         )
 
-        normalized = " ".join(
-            normalized.split()
+        normalized = normalized.replace(
+            "*",
+            "",
         )
 
-        return normalized
+        # Underscore is commonly used in metadata-style
+        # headings and should behave like whitespace.
+        normalized = normalized.replace(
+            "_",
+            " ",
+        )
+
+        normalized = normalized.replace(
+            "-",
+            " ",
+        )
+
+        normalized = re.sub(
+            r"\s+",
+            " ",
+            normalized,
+        )
+
+        return normalized.strip()
 
     # ============================================================
-    # SECTION FILTERING
+    # SECTION SELECTION
     # ============================================================
 
     def _select_neutral_sections(
         self,
-        sections: dict[str, str],
-    ) -> dict[str, str]:
+        sections: list[ScenarioSection],
+    ) -> list[ScenarioSection]:
         """
-        Select only model-safe contextual sections.
+        Select model-safe application-context sections.
 
-        Filtering order:
+        Explicit answer/security-conclusion sections are always
+        excluded.
 
-            1. Normalize heading.
-            2. Check explicit exclusion.
-            3. Check allowed section.
-            4. Ignore empty sections.
-
-        Explicit exclusion ALWAYS wins.
+        Unknown headings are excluded when
+        include_allowed_only=True.
         """
 
-        neutral_sections: dict[
-            str, str
-        ] = {}
+        selected: list[
+            ScenarioSection
+        ] = []
 
-        for heading, content in (
-            sections.items()
-        ):
+        for section in sections:
 
-            normalized = (
+            heading = (
                 self._normalize_heading(
-                    heading
+                    section.heading
                 )
             )
 
             # ----------------------------------------------------
-            # Security rule:
-            #
-            # Explicit exclusion ALWAYS wins.
+            # Empty section
+            # ----------------------------------------------------
+
+            if not section.content.strip():
+
+                section.included = False
+
+                section.exclusion_reason = (
+                    "empty section"
+                )
+
+                continue
+
+            # ----------------------------------------------------
+            # Explicit ground-truth section
             # ----------------------------------------------------
 
             if (
-                normalized
-                in self.excluded_sections_set
-            ):
-                continue
-
-            # ----------------------------------------------------
-            # Only explicitly allowed contextual sections
-            # are model-visible.
-            # ----------------------------------------------------
-
-            if (
-                normalized
-                not in self.allowed_sections
-            ):
-                continue
-
-            if not content.strip():
-                continue
-
-            neutral_sections[
                 heading
-            ] = content
+                in self.EXCLUDED_HEADINGS
+            ):
 
-        return neutral_sections
+                section.included = False
 
-    # ============================================================
-    # PROMPT CONTEXT
-    # ============================================================
+                section.exclusion_reason = (
+                    "ground-truth heading"
+                )
 
-    def build_context(
-        self,
-        scenario: Scenario,
-    ) -> str:
-        """
-        Convert neutral sections into the context block used
-        by prompt_template.txt.
-        """
+                continue
 
-        if not scenario.neutral_sections:
+            # ----------------------------------------------------
+            # Security conclusion
+            # ----------------------------------------------------
 
-            return (
-                "No additional application "
-                "context was provided."
+            if (
+                heading
+                in self.SECURITY_CONCLUSION_HEADINGS
+            ):
+
+                section.included = False
+
+                section.exclusion_reason = (
+                    "security-conclusion heading"
+                )
+
+                continue
+
+            # ----------------------------------------------------
+            # Allowed neutral section
+            # ----------------------------------------------------
+
+            if (
+                self.include_allowed_only
+                and heading
+                not in self.ALLOWED_HEADINGS
+            ):
+
+                section.included = False
+
+                section.exclusion_reason = (
+                    "heading not in neutral allowlist"
+                )
+
+                continue
+
+            # ----------------------------------------------------
+            # Select
+            # ----------------------------------------------------
+
+            section.included = True
+
+            section.exclusion_reason = None
+
+            selected.append(
+                section
             )
 
-        blocks = []
+        return selected
 
-        for heading, content in (
-            scenario.neutral_sections.items()
-        ):
+    # ============================================================
+    # CONTENT LEAKAGE VALIDATION
+    # ============================================================
+
+    def _validate_no_answer_leakage(
+        self,
+        sections: list[ScenarioSection],
+        scenario_file: Path,
+    ) -> None:
+        """
+        Reject explicit answer-bearing content that survived
+        section filtering.
+
+        This is intentionally conservative for dataset creation:
+        failing a scenario is preferable to silently creating a
+        label-leaked training sample.
+        """
+
+        findings: list[str] = []
+
+        for section in sections:
+
+            for pattern in (
+                self.ANSWER_LEAKAGE_PATTERNS
+            ):
+
+                match = re.search(
+                    pattern,
+                    section.content,
+                    re.IGNORECASE,
+                )
+
+                if match:
+
+                    findings.append(
+                        f"{section.heading!r}: "
+                        f"{match.group(0)!r}"
+                    )
+
+        if findings:
+
+            raise ValueError(
+                "Answer leakage detected in "
+                f"scenario.md: {scenario_file}. "
+                "Remove ground-truth/classification "
+                "information from the neutral scenario "
+                "context. Findings: "
+                + "; ".join(findings)
+            )
+
+    # ============================================================
+    # CONTEXT RENDERING
+    # ============================================================
+
+    def _render_context(
+        self,
+        sections: list[ScenarioSection],
+    ) -> str:
+        """
+        Render only selected neutral sections.
+        """
+
+        blocks: list[str] = []
+
+        for section in sections:
+
+            content = (
+                section.content.strip()
+            )
+
+            if not content:
+                continue
+
+            heading_prefix = "#" * max(
+                2,
+                min(
+                    section.level,
+                    6,
+                ),
+            )
 
             blocks.append(
-                f"## {heading}\n\n"
+                f"{heading_prefix} "
+                f"{section.heading.strip()}\n\n"
                 f"{content}"
             )
 
-        return "\n\n".join(
-            blocks
-        )
-
-    # ============================================================
-    # INSPECTION HELPERS
-    # ============================================================
-
-    def get_all_sections(
-        self,
-        scenario: Scenario,
-    ) -> dict[str, str]:
-        """
-        Return every parsed scenario section.
-
-        For debugging only.
-
-        Do NOT pass this directly to the model.
-        """
-
-        return dict(
-            scenario.sections
-        )
-
-    def get_neutral_sections(
-        self,
-        scenario: Scenario,
-    ) -> dict[str, str]:
-        """
-        Return only approved model-visible sections.
-        """
-
-        return dict(
-            scenario.neutral_sections
-        )
-
-    def excluded_sections(
-        self,
-        scenario: Scenario,
-    ) -> list[str]:
-        """
-        Return all parsed sections that were excluded.
-
-        This includes:
-            - explicitly excluded sections
-            - sections not present in the allowed list
-        """
-
-        excluded = []
-
-        for heading in (
-            scenario.sections
-        ):
-
-            normalized = (
-                self._normalize_heading(
-                    heading
-                )
-            )
-
-            if (
-                normalized
-                in self.excluded_sections_set
-            ):
-                excluded.append(
-                    heading
-                )
-                continue
-
-            if (
-                normalized
-                not in self.allowed_sections
-            ):
-                excluded.append(
-                    heading
-                )
-
-        return excluded
-
-    # ============================================================
-    # SAFETY CHECK
-    # ============================================================
-
-    def is_model_safe_heading(
-        self,
-        heading: str,
-    ) -> bool:
-        """
-        Return True if a heading is safe to expose.
-
-        Explicit exclusions always override allowed sections.
-        """
-
-        normalized = (
-            self._normalize_heading(
-                heading
-            )
-        )
-
-        if (
-            normalized
-            in self.excluded_sections_set
-        ):
-            return False
-
         return (
-            normalized
-            in self.allowed_sections
+            "\n\n".join(
+                blocks
+            ).strip()
         )
+
+    # ============================================================
+    # DIAGNOSTICS
+    # ============================================================
+
+    def get_diagnostics(
+        self,
+        context: ScenarioContext,
+    ) -> dict:
+        """
+        Return builder/debug information.
+
+        This is for debug logs only.
+
+        Do NOT place the diagnostics object into ModelInput.
+        """
+
+        return {
+            "scenario_id": (
+                context.scenario_id
+            ),
+            "scenario_md_loaded": (
+                context.loaded
+            ),
+            "scenario_md": (
+                context.source_file
+            ),
+            "total_sections": (
+                context.section_count
+            ),
+            "included_sections": (
+                context.included_section_count
+            ),
+            "excluded_sections": (
+                context.excluded_section_count
+            ),
+            "context_characters": (
+                len(context.text)
+            ),
+            "sections": [
+                {
+                    "heading": (
+                        section.heading
+                    ),
+                    "level": (
+                        section.level
+                    ),
+                    "included": (
+                        section.included
+                    ),
+                    "reason": (
+                        section.exclusion_reason
+                    ),
+                    "characters": (
+                        len(section.content)
+                    ),
+                }
+                for section in context.sections
+            ],
+        }

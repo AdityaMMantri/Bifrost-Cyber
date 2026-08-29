@@ -1,57 +1,18 @@
 from pathlib import Path
 
-
-# ============================================================
-# PROJECT PATHS
-# ============================================================
-
-# Single project root.
-#
-# Change ONLY this path if your project is located elsewhere.
-PROJECT_ROOT = Path(
-    r"F:\SEM-7\Capstone\Classification\PrimeVulBuilder"
-)
+PROJECT_ROOT = Path(r"F:\SEM-7\Capstone\Classification\PrimeVulBuilder")
+DATASET_ROOT = Path(r"F:\SEM-7\Capstone\SFT\SFT_Dataset")
 
 
-# Existing SFT dataset containing all scenario folders.
-#
-# The PrimeVul builder READS from this directory.
-# It does not modify the original SFT dataset.
-DATASET_ROOT = Path(
-    r"F:\SEM-7\Capstone\SFT\SFT_Dataset"
-)
-
-
-# New PrimeVul-style dataset output directory.
-OUTPUT_DIR = (
-    PROJECT_ROOT / "output"
-)
-
-OUTPUT_FILE = (
-    OUTPUT_DIR / "primevul_custom.jsonl"
-)
-
-
-# ============================================================
-# PROMPT FILES
-# ============================================================
+OUTPUT_DIR = (PROJECT_ROOT/"output")
+OUTPUT_FILE = (OUTPUT_DIR/"primevul_custom.jsonl")
 
 # System-level instructions for the vulnerability
 # classification model.
-SYSTEM_PROMPT_FILE = (
-    PROJECT_ROOT / "system_prompt.txt"
-)
-
-
+SYSTEM_PROMPT_FILE = (PROJECT_ROOT/"system_prompt.txt")
 # Per-scenario user prompt template.
-PROMPT_TEMPLATE_FILE = (
-    PROJECT_ROOT / "prompt_template.txt"
-)
+PROMPT_TEMPLATE_FILE = (PROJECT_ROOT/"prompt_template.txt")
 
-
-# ============================================================
-# SOURCE CODE SETTINGS
-# ============================================================
 
 # Use ONLY files explicitly marked as relevant in metadata.json.
 #
@@ -68,9 +29,6 @@ INCLUDE_RELEVANT_FILES_ONLY = True
 INCLUDE_SCENARIO_CONTEXT = True
 
 
-# ============================================================
-# MODEL-SAFE SCENARIO SECTIONS
-# ============================================================
 
 # These sections help the classifier understand the software
 # without directly giving away the vulnerability.
@@ -81,28 +39,20 @@ ALLOWED_SCENARIO_SECTIONS = [
     "Overview",
     "Application Overview",
     "Application Description",
-
     "Technology Stack",
     "Technologies",
-
     "Architecture",
     "System Architecture",
-
     "Business Workflow",
     "Workflow",
     "Normal Workflow",
     "Application Workflow",
-
     "Trust Boundary",
-
     "Security Model",
     "Security Architecture",
 ]
 
 
-# ============================================================
-# NEVER-EXPOSE SECTIONS
-# ============================================================
 
 # These sections can contain ground-truth information.
 #
@@ -110,42 +60,29 @@ ALLOWED_SCENARIO_SECTIONS = [
 EXCLUDED_SCENARIO_SECTIONS = [
     "Expected Attack",
     "Optimal Attack",
-
     "Primary Vulnerability",
     "Vulnerability",
     "Known Vulnerability",
-
     "CWE",
     "CWE Reference",
-
     "Injection Point",
     "Sink",
     "Source",
-
     "Attack Path",
     "Attack Chain",
     "Attack Preconditions",
-
     "Broken Assumption",
-
     "Optimal Defense",
-
     "Valid Attacks",
     "Valid Defenses",
-
     "Ground Truth",
-
     "Security Finding",
     "Finding",
-
     "Exploit",
     "Exploitation",
 ]
 
 
-# ============================================================
-# GROUND-TRUTH SETTINGS
-# ============================================================
 
 # red_sft.json is read internally.
 #
@@ -257,6 +194,20 @@ OUTPUT_DIR.mkdir(
     parents=True,
     exist_ok=True,
 )
+LOG_DIR = OUTPUT_DIR / "logs"
+
+LOG_DIR.mkdir(
+    parents=True,
+    exist_ok=True,
+)
+
+LOG_FILE = LOG_DIR / "build.log"
+
+if SAVE_DEBUG_PROMPTS:
+    DEBUG_DIR.mkdir(
+        parents=True,
+        exist_ok=True,
+    )
 
 
 # Create debug directory only when debugging is enabled.

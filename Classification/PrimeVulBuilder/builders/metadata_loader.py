@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import json
 from pathlib import Path
 from typing import Any
@@ -7,19 +9,23 @@ from .models import Metadata
 
 class MetadataLoader:
     """
-    Loads and normalizes metadata.json for the PrimeVul builder.
+    Loads metadata.json for the PrimeVul builder.
 
-    Responsibilities:
-        - Read metadata.json
-        - Extract relevant source files
-        - Extract ground-truth vulnerability information
-        - Extract CWE / attack / source / sink information
-        - Preserve the original metadata
-        - Validate required fields
+    IMPORTANT
+    ---------
+    metadata.json is builder-side ground truth.
 
-    Important:
-        metadata.json is builder-side information.
-        It must NOT be directly exposed to the model.
+    It is NEVER passed directly to the classification model.
+
+    This loader is responsible for:
+        - reading metadata.json
+        - normalizing metadata fields
+        - extracting relevant/noise files
+        - extracting vulnerability information
+        - preserving ground-truth information for builder-side use
+
+    It does NOT load scenario.md.
+    scenario.md is handled exclusively by ScenarioLoader.
     """
 
     def __init__(self, logger=None):
@@ -29,114 +35,310 @@ class MetadataLoader:
     # PUBLIC API
     # ============================================================
 
-    def load(self, metadata_path: Path) -> Metadata:
+    def load(
+        self,
+        metadata_path: Path,
+    ) -> Metadata:
         """
-        Load a metadata.json file and return a normalized Metadata
-        object.
+        Load and normalize one metadata.json file.
         """
 
-        metadata_path = Path(metadata_path)
+        metadata_path = Path(
+            metadata_path
+        )
 
         if not metadata_path.exists():
+
             raise FileNotFoundError(
-                f"Metadata file not found: {metadata_path}"
-            )
-
-        if not metadata_path.is_file():
-            raise ValueError(
-                f"Metadata path is not a file: {metadata_path}"
-            )
-
-        data = self._read_json(metadata_path)
-
-        if not isinstance(data, dict):
-            raise ValueError(
-                f"Expected metadata.json to contain a JSON object: "
+                f"Metadata file not found: "
                 f"{metadata_path}"
             )
 
-        scenario_name = self._extract_scenario_name(
-            data,
-            metadata_path,
+        if not metadata_path.is_file():
+
+            raise ValueError(
+                f"Metadata path is not a file: "
+                f"{metadata_path}"
+            )
+
+        data = self._read_json(
+            metadata_path
         )
 
-        relevant_files = self._extract_file_list(
+        if not isinstance(
             data,
-            "relevant_files",
+            dict,
+        ):
+
+            raise ValueError(
+                "Expected metadata.json to contain "
+                f"a JSON object: {metadata_path}"
+            )
+
+        # ========================================================
+        # SCENARIO ID / NAME
+        # ========================================================
+
+        scenario_id = (
+            self._extract_string(
+                data,
+                "scenario_id",
+            )
         )
 
-        noise_files = self._extract_file_list(
-            data,
-            "noise_files",
+        scenario_name = (
+            self._extract_scenario_name(
+                data,
+                metadata_path,
+            )
         )
 
-        vulnerabilities = self._extract_vulnerabilities(data)
+        # ========================================================
+        # FILE LISTS
+        # ========================================================
 
-        optimal_attack = self._extract_string(
-            data,
-            "optimal_attack",
+        relevant_files = (
+            self._extract_file_list(
+                data,
+                "relevant_files",
+            )
         )
 
-        valid_attacks = self._extract_string_list(
-            data,
-            "valid_attacks",
+        noise_files = (
+            self._extract_file_list(
+                data,
+                "noise_files",
+            )
         )
 
-        cwe_reference = self._extract_cwe(data)
+        # ========================================================
+        # VULNERABILITIES
+        # ========================================================
 
-        injection_point = self._extract_string(
-            data,
-            "injection_point",
+        vulnerabilities = (
+            self._extract_vulnerabilities(
+                data
+            )
         )
 
-        sink = self._extract_string(
-            data,
-            "sink",
+        # ========================================================
+        # CLASSIFICATION
+        # ========================================================
+
+        classification = data.get(
+            "classification"
         )
 
-        severity = self._extract_string(
-            data,
-            "severity",
-        )
+        if not isinstance(
+            classification,
+            dict,
+        ):
 
-        description = self._extract_description(data)
+            classification = {}
 
-        requires_cross_file_reasoning = self._extract_bool(
-            data,
-            "requires_cross_file_reasoning",
-        )
+        # ========================================================
+        # BUILD METADATA OBJECT
+        #
+        # IMPORTANT FIX:
+        #
+        # Metadata defines:
+        #
+        #     name: Optional[str]
+        #
+        # and scenario_name is a property.
+        #
+        # Therefore:
+        #
+        #     name=scenario_name
+        #
+        # NOT:
+        #
+        #     scenario_name=scenario_name
+        # ========================================================
 
         metadata = Metadata(
-            scenario_name=scenario_name,
-            relevant_files=relevant_files,
-            noise_files=noise_files,
-            technology_stack=self._extract_string_list(
+    scenario_id=self._extract_string(
+        data,
+        "scenario_id",
+    ),
+
+    name=scenario_name,
+
+    category=self._extract_string(
+        data,
+        "category",
+    ),
+
+            attack_type=self._extract_string(
                 data,
-                "technology_stack",
+                "attack_type",
             ),
-            trust_boundary=self._extract_trust_boundary(data),
+
+            difficulty=self._extract_string(
+                data,
+                "difficulty",
+            ),
+
+            scenario_type=self._extract_string(
+                data,
+                "scenario_type",
+            ),
+
+            vulnerability_count=self._extract_int(
+                data,
+                "vulnerability_count",
+                len(vulnerabilities),
+            ),
+
             vulnerabilities=vulnerabilities,
-            optimal_attack=optimal_attack,
-            valid_attacks=valid_attacks,
-            cwe_reference=cwe_reference,
-            injection_point=injection_point,
-            sink=sink,
-            severity=severity,
-            description=description,
-            requires_cross_file_reasoning=(
-                requires_cross_file_reasoning
+
+            optimal_attack=self._extract_string(
+                data,
+                "optimal_attack",
             ),
+
+            optimal_defense=self._extract_string(
+                data,
+                "optimal_defense",
+            ),
+
+            valid_attacks=self._extract_string_list(
+                data,
+                "valid_attacks",
+            ),
+
+            valid_defenses=self._extract_string_list(
+                data,
+                "valid_defenses",
+            ),
+
+            cwe_reference=self._extract_cwe(
+                data
+            ),
+
+            cve=self._extract_string(
+                data,
+                "cve",
+            )
+            or self._extract_string(
+                data,
+                "cve_reference",
+            ),
+
+            cve_desc=self._extract_string(
+                data,
+                "cve_desc",
+            ),
+
+            source=self._extract_string(
+                data,
+                "source",
+            ),
+
+            sink=self._extract_string(
+                data,
+                "sink",
+            ),
+
+            injection_point=self._extract_string(
+                data,
+                "injection_point",
+            ),
+
+            severity=self._extract_string(
+                data,
+                "severity",
+            ),
+
+            description=self._extract_description(
+                data
+            ),
+
+            trust_boundary=self._extract_trust_boundary(
+                data
+            ),
+
+            requires_cross_file_reasoning=(
+                self._extract_bool(
+                    data,
+                    "requires_cross_file_reasoning",
+                )
+            ),
+
+            reasoning_depth=self._extract_int(
+                data,
+                "reasoning_depth",
+                None,
+            ),
+
+            competing_hypotheses=data.get(
+                "competing_hypotheses",
+                [],
+            ),
+
+            tags=self._extract_string_list(
+                data,
+                "tags",
+            ),
+
+            classification=classification,
+
+            relevant_files=relevant_files,
+
+            noise_files=noise_files,
+
             raw_data=data,
         )
 
-        self._validate(metadata, metadata_path)
+        # ========================================================
+        # NORMALIZE COMPETING HYPOTHESES
+        # ========================================================
+
+        if not isinstance(
+            metadata.competing_hypotheses,
+            list,
+        ):
+
+            metadata.competing_hypotheses = []
+
+        # ========================================================
+        # VALIDATE
+        # ========================================================
+
+        self._validate(
+            metadata,
+            metadata_path,
+        )
+
+        # ========================================================
+        # LOGGING
+        # ========================================================
 
         if self.logger:
+
             self.logger.info(
-                f"Loaded metadata: {metadata.scenario_name}"
+                f"Loaded metadata: "
+                f"{metadata.scenario_name}"
             )
+
             self.logger.info(
-                f"Relevant files: {len(metadata.relevant_files)}"
+                f"Scenario ID: "
+                f"{metadata.scenario_id}"
+            )
+
+            self.logger.info(
+                f"Relevant files: "
+                f"{len(metadata.relevant_files)}"
+            )
+
+            self.logger.info(
+                f"Noise files: "
+                f"{len(metadata.noise_files)}"
+            )
+
+            self.logger.info(
+                f"Vulnerability count: "
+                f"{metadata.vulnerability_count}"
             )
 
         return metadata
@@ -145,24 +347,34 @@ class MetadataLoader:
     # JSON READING
     # ============================================================
 
-    def _read_json(self, path: Path) -> dict[str, Any]:
+    def _read_json(
+        self,
+        path: Path,
+    ) -> dict[str, Any]:
+
         try:
+
             with path.open(
                 "r",
                 encoding="utf-8",
             ) as file:
-                return json.load(file)
+
+                return json.load(
+                    file
+                )
 
         except json.JSONDecodeError as exc:
+
             raise ValueError(
-                f"Invalid JSON in metadata file: {path}\n"
-                f"{exc}"
+                f"Invalid JSON in metadata file: "
+                f"{path}\n{exc}"
             ) from exc
 
         except OSError as exc:
+
             raise OSError(
-                f"Could not read metadata file: {path}\n"
-                f"{exc}"
+                f"Could not read metadata file: "
+                f"{path}\n{exc}"
             ) from exc
 
     # ============================================================
@@ -175,25 +387,35 @@ class MetadataLoader:
         metadata_path: Path,
     ) -> str:
 
-        possible_keys = [
+        for key in (
             "scenario_name",
+            "name",
             "scenario_id",
             "id",
-            "name",
             "scenario",
-        ]
+        ):
 
-        for key in possible_keys:
-            value = data.get(key)
+            value = data.get(
+                key
+            )
 
-            if isinstance(value, str) and value.strip():
+            if (
+                isinstance(
+                    value,
+                    str,
+                )
+                and value.strip()
+            ):
+
                 return value.strip()
 
-        # Fallback to scenario directory name.
+        # Final fallback:
+        # directory name, e.g. scenario_019
+
         return metadata_path.parent.name
 
     # ============================================================
-    # FILE LISTS
+    # FILE LIST
     # ============================================================
 
     def _extract_file_list(
@@ -202,22 +424,40 @@ class MetadataLoader:
         key: str,
     ) -> list[str]:
 
-        value = data.get(key, [])
+        value = data.get(
+            key,
+            [],
+        )
 
         if value is None:
+
             return []
 
-        if not isinstance(value, list):
+        if not isinstance(
+            value,
+            list,
+        ):
+
             raise ValueError(
                 f"'{key}' must be a list, "
                 f"got {type(value).__name__}"
             )
 
-        result = []
+        result: list[str] = []
 
         for item in value:
-            if isinstance(item, str) and item.strip():
-                result.append(item.strip())
+
+            if (
+                isinstance(
+                    item,
+                    str,
+                )
+                and item.strip()
+            ):
+
+                result.append(
+                    item.strip()
+                )
 
         return result
 
@@ -228,27 +468,42 @@ class MetadataLoader:
     def _extract_vulnerabilities(
         self,
         data: dict[str, Any],
-    ) -> list[dict]:
+    ) -> list[dict[str, Any]]:
 
-        value = data.get("vulnerabilities", [])
+        value = data.get(
+            "vulnerabilities",
+            [],
+        )
 
         if value is None:
+
             return []
 
-        if isinstance(value, dict):
+        if isinstance(
+            value,
+            dict,
+        ):
+
             return [value]
 
-        if not isinstance(value, list):
+        if not isinstance(
+            value,
+            list,
+        ):
+
             return []
 
         return [
             item
             for item in value
-            if isinstance(item, dict)
+            if isinstance(
+                item,
+                dict,
+            )
         ]
 
     # ============================================================
-    # STRING VALUES
+    # STRING
     # ============================================================
 
     def _extract_string(
@@ -257,18 +512,24 @@ class MetadataLoader:
         key: str,
     ) -> str | None:
 
-        value = data.get(key)
+        value = data.get(
+            key
+        )
 
-        if isinstance(value, str):
-            value = value.strip()
+        if (
+            isinstance(
+                value,
+                str,
+            )
+            and value.strip()
+        ):
 
-            if value:
-                return value
+            return value.strip()
 
         return None
 
     # ============================================================
-    # STRING LISTS
+    # STRING LIST
     # ============================================================
 
     def _extract_string_list(
@@ -277,23 +538,95 @@ class MetadataLoader:
         key: str,
     ) -> list[str]:
 
-        value = data.get(key, [])
+        value = data.get(
+            key,
+            [],
+        )
 
         if value is None:
+
             return []
 
-        if isinstance(value, str):
-            value = [value]
+        if isinstance(
+            value,
+            str,
+        ):
 
-        if not isinstance(value, list):
+            value = [
+                value
+            ]
+
+        if not isinstance(
+            value,
+            list,
+        ):
+
             return []
 
         return [
             item.strip()
             for item in value
-            if isinstance(item, str)
-            and item.strip()
+            if (
+                isinstance(
+                    item,
+                    str,
+                )
+                and item.strip()
+            )
         ]
+
+    # ============================================================
+    # INTEGER
+    # ============================================================
+
+    def _extract_int(
+        self,
+        data: dict[str, Any],
+        key: str,
+        default,
+    ):
+
+        value = data.get(
+            key
+        )
+
+        if (
+            isinstance(
+                value,
+                int,
+            )
+            and not isinstance(
+                value,
+                bool,
+            )
+        ):
+
+            return value
+
+        return default
+
+    # ============================================================
+    # BOOLEAN
+    # ============================================================
+
+    def _extract_bool(
+        self,
+        data: dict[str, Any],
+        key: str,
+    ) -> bool:
+
+        value = data.get(
+            key
+        )
+
+        if isinstance(
+            value,
+            bool,
+        ):
+
+            return value
+
+        return False
 
     # ============================================================
     # CWE
@@ -302,39 +635,54 @@ class MetadataLoader:
     def _extract_cwe(
         self,
         data: dict[str, Any],
-    ) -> str | None:
+    ):
 
-        value = data.get("cwe_reference")
-
-        if isinstance(value, str):
-            return value.strip() or None
-
-        # Some metadata schemas may store CWE information
-        # under a vulnerability object.
-        vulnerabilities = data.get(
-            "vulnerabilities",
-            [],
+        value = data.get(
+            "cwe_reference",
+            data.get(
+                "cwe"
+            ),
         )
 
-        if isinstance(vulnerabilities, list):
+        if isinstance(
+            value,
+            (
+                str,
+                list,
+            ),
+        ):
 
-            for vulnerability in vulnerabilities:
+            return value
 
-                if not isinstance(vulnerability, dict):
-                    continue
+        # --------------------------------------------------------
+        # Fallback to vulnerability-level CWE
+        # --------------------------------------------------------
 
-                for key in (
-                    "cwe",
-                    "cwe_id",
-                    "cwe_reference",
+        for vulnerability in (
+            self._extract_vulnerabilities(
+                data
+            )
+        ):
+
+            for key in (
+                "cwe",
+                "cwe_id",
+                "cwe_reference",
+            ):
+
+                cwe = vulnerability.get(
+                    key
+                )
+
+                if isinstance(
+                    cwe,
+                    (
+                        str,
+                        list,
+                    ),
                 ):
-                    cwe = vulnerability.get(key)
 
-                    if isinstance(cwe, str):
-                        cwe = cwe.strip()
-
-                        if cwe:
-                            return cwe
+                    return cwe
 
         return None
 
@@ -347,38 +695,54 @@ class MetadataLoader:
         data: dict[str, Any],
     ) -> str | None:
 
-        direct_description = self._extract_string(
-            data,
-            "description",
+        # --------------------------------------------------------
+        # Top-level description
+        #
+        # IMPORTANT:
+        # This remains builder-side metadata.
+        # It must NOT be inserted into the model prompt.
+        # --------------------------------------------------------
+
+        description = (
+            self._extract_string(
+                data,
+                "description",
+            )
         )
 
-        if direct_description:
-            return direct_description
+        if description:
 
-        vulnerabilities = data.get(
-            "vulnerabilities",
-            [],
-        )
+            return description
 
-        if isinstance(vulnerabilities, list):
+        # --------------------------------------------------------
+        # Vulnerability-level description
+        # --------------------------------------------------------
 
-            for vulnerability in vulnerabilities:
+        for vulnerability in (
+            self._extract_vulnerabilities(
+                data
+            )
+        ):
 
-                if not isinstance(vulnerability, dict):
-                    continue
+            for key in (
+                "description",
+                "vulnerability_description",
+                "summary",
+            ):
 
-                for key in (
-                    "description",
-                    "vulnerability_description",
-                    "summary",
+                value = vulnerability.get(
+                    key
+                )
+
+                if (
+                    isinstance(
+                        value,
+                        str,
+                    )
+                    and value.strip()
                 ):
-                    description = vulnerability.get(key)
 
-                    if isinstance(description, str):
-                        description = description.strip()
-
-                        if description:
-                            return description
+                    return value.strip()
 
         return None
 
@@ -391,39 +755,64 @@ class MetadataLoader:
         data: dict[str, Any],
     ) -> str | None:
 
-        value = data.get("trust_boundary")
+        value = (
+            self._extract_string(
+                data,
+                "trust_boundary",
+            )
+        )
 
-        if isinstance(value, str):
-            return value.strip() or None
+        if value:
 
-        # Handle schemas where security information is nested.
-        security = data.get("security")
-
-        if isinstance(security, dict):
-
-            value = security.get("trust_boundary")
-
-            if isinstance(value, str):
-                return value.strip() or None
-
-        return None
-
-    # ============================================================
-    # BOOLEAN
-    # ============================================================
-
-    def _extract_bool(
-        self,
-        data: dict[str, Any],
-        key: str,
-    ) -> bool:
-
-        value = data.get(key)
-
-        if isinstance(value, bool):
             return value
 
-        return False
+        security = data.get(
+            "security"
+        )
+
+        if isinstance(
+            security,
+            dict,
+        ):
+
+            return self._extract_string(
+                security,
+                "trust_boundary",
+            )
+
+        # --------------------------------------------------------
+        # Some scenarios use trust_boundaries plural.
+        # Keep this as builder-side metadata.
+        # --------------------------------------------------------
+
+        boundaries = data.get(
+            "trust_boundaries"
+        )
+
+        if isinstance(
+            boundaries,
+            list,
+        ):
+
+            values = [
+                str(item).strip()
+                for item in boundaries
+                if (
+                    isinstance(
+                        item,
+                        str,
+                    )
+                    and item.strip()
+                )
+            ]
+
+            if values:
+
+                return "\n".join(
+                    values
+                )
+
+        return None
 
     # ============================================================
     # VALIDATION
@@ -435,13 +824,21 @@ class MetadataLoader:
         metadata_path: Path,
     ) -> None:
 
+        # --------------------------------------------------------
+        # Relevant files are mandatory for PrimeVul samples.
+        # --------------------------------------------------------
+
         if not metadata.relevant_files:
+
             raise ValueError(
                 f"No relevant_files found in "
                 f"{metadata_path}"
             )
 
-        # Relevant and noise files should not overlap.
+        # --------------------------------------------------------
+        # Relevant/noise overlap is invalid.
+        # --------------------------------------------------------
+
         overlap = set(
             metadata.relevant_files
         ).intersection(
@@ -449,52 +846,78 @@ class MetadataLoader:
         )
 
         if overlap:
+
             raise ValueError(
-                f"Files appear in both relevant_files and "
-                f"noise_files in {metadata_path}: "
+                "Files appear in both "
+                "relevant_files and noise_files "
+                f"in {metadata_path}: "
                 f"{sorted(overlap)}"
             )
 
+        # --------------------------------------------------------
+        # Vulnerability count consistency
+        #
+        # Do not silently rewrite the supplied metadata.
+        # Warn if it differs from the actual vulnerability
+        # object count.
+        # --------------------------------------------------------
+
+        actual_count = len(
+            metadata.vulnerabilities
+        )
+
+        if (
+            metadata.vulnerability_count
+            != actual_count
+        ):
+
+            # A zero vulnerability count with no vulnerability
+            # objects is perfectly valid for safe scenarios.
+            #
+            # For inconsistent vulnerable metadata, log a warning
+            # rather than changing ground truth here.
+
+            if self.logger:
+
+                self.logger.warning(
+                    f"{metadata.scenario_name}: "
+                    f"metadata vulnerability_count="
+                    f"{metadata.vulnerability_count}, "
+                    f"but parsed vulnerabilities="
+                    f"{actual_count}"
+                )
+
     # ============================================================
-    # CONVENIENCE METHODS
+    # ACCESSORS
     # ============================================================
 
     def get_relevant_files(
         self,
         metadata: Metadata,
     ) -> list[str]:
-        """
-        Return files that should become the model's primary
-        source-code input.
-        """
 
-        return list(metadata.relevant_files)
+        return list(
+            metadata.relevant_files
+        )
 
     def get_noise_files(
         self,
         metadata: Metadata,
     ) -> list[str]:
-        """
-        Return noise files.
 
-        These are retained for metadata/debugging purposes but
-        should NOT be included in the PrimeVul-style source
-        input.
-        """
-
-        return list(metadata.noise_files)
+        return list(
+            metadata.noise_files
+        )
 
     def get_ground_truth_vulnerability(
         self,
         metadata: Metadata,
     ) -> dict | None:
-        """
-        Return the first available vulnerability record.
-
-        This is builder-side information only.
-        """
 
         if not metadata.vulnerabilities:
+
             return None
 
-        return metadata.vulnerabilities[0]
+        return metadata.vulnerabilities[
+            0
+        ]
