@@ -18,9 +18,15 @@ Does NOT:
 
 MODEL LOADING:
 
-    1. Local merged model, if available
-    2. Local base model + LoRA adapter, if available
-    3. Hugging Face base model + LoRA adapter, otherwise
+    Default/training:
+        1. Load ONE shared base model
+        2. Attach Red/Blue LoRA adapters to that same backbone
+
+    Optional compatibility:
+        - Explicitly enable merged-model loading in config for
+          inference/evaluation.
+
+    Merged models are never selected automatically during training.
 
 IMPORTANT:
 
@@ -306,8 +312,8 @@ class Generator:
         device: torch.device,
         role: str,
         model_name: str = "unknown",
-        max_input_tokens: int = 6148,
-        max_new_tokens: int = 2048,
+        max_input_tokens: int = config.MAX_INPUT_TOKENS,
+        max_new_tokens: int = config.MAX_NEW_TOKENS,
         top_p: float = 0.95,
         do_sample: bool = True,
         generation_batch_size: int = 1,
@@ -359,9 +365,7 @@ class Generator:
         logger=None,
     ) -> "Generator":
 
-        role = cls._validate_role(
-            role
-        )
+        role = cls._validate_role(role)
 
         adapter_path = (
             config.RED_ADAPTER_PATH
@@ -369,25 +373,35 @@ class Generator:
             else config.BLUE_ADAPTER_PATH
         )
 
-        merged_model_path = (
-            cls._find_merged_model(
+        # DEFAULT: use the required shared-base + LoRA architecture.
+        # Merged models are only an explicit compatibility option.
+        use_merged_model = bool(
+            getattr(config, "USE_MERGED_MODEL", False)
+        )
+
+        if use_merged_model:
+
+            merged_model_path = cls._find_merged_model(
                 role=role,
                 adapter_path=adapter_path,
             )
-        )
 
-        if merged_model_path is not None:
-
-            if logger:
-
-                logger.info(
-                    f"Loading {role.capitalize()} "
-                    f"policy from LOCAL MERGED MODEL"
+            if merged_model_path is None:
+                raise FileNotFoundError(
+                    f"{role.capitalize()} merged-model loading was "
+                    f"explicitly enabled, but no valid merged model "
+                    f"was found. Check {role.upper()}_MERGED_MODEL_PATH."
                 )
 
-                logger.info(
-                    f"Merged model : "
-                    f"{merged_model_path}"
+            if logger:
+                logger.warning(
+                    f"Loading {role.capitalize()} from an explicit "
+                    f"MERGED MODEL configuration."
+                )
+                logger.warning(
+                    "Merged-model mode is for inference/evaluation "
+                    "compatibility and is NOT the normal SOGARL "
+                    "shared-LoRA training path."
                 )
 
             return cls.from_merged_model(
@@ -396,12 +410,29 @@ class Generator:
                 logger=logger,
             )
 
-        return cls.from_adapter(
-            role=role,
-            adapter_path=adapter_path,
-            logger=logger,
-            is_trainable=True,
-        )
+        # First attempt: ONE shared base + role LoRA.
+        try:
+            return cls.from_adapter(
+                role=role,
+                adapter_path=adapter_path,
+                logger=logger,
+                is_trainable=True,
+            )
+        except Exception as exc:
+            # Do NOT silently fall back to a merged model. Doing so would
+            # change the trainable architecture. Give an explicit,
+            # actionable error instead.
+            raise RuntimeError(
+                f"Failed to load the SOGARL {role.capitalize()} policy "
+                f"using the required shared-base + LoRA path. "
+                f"No merged model was loaded automatically. "
+                f"Check BASE_MODEL_NAME/BASE_MODEL_SOURCE and "
+                f"{role.upper()}_ADAPTER_PATH. "
+                f"For inference/evaluation compatibility only, set "
+                f"USE_MERGED_MODEL=True and configure "
+                f"{role.upper()}_MERGED_MODEL_PATH. "
+                f"Original error: {exc}"
+            ) from exc
 
     # ==================================================================
     # MERGED MODEL LOADING
@@ -1421,25 +1452,16 @@ class Generator:
     ) -> Dict[str, Any]:
 
         # --------------------------------------------------------------
-        # MEMORY FIX:
+        # Generation uses KV caching because this is autoregressive
+        # inference.  Training/GRPO scoring explicitly disables the
+        # cache in _compute_single_log_probs().
         #
-        # The Kaggle GPU has ~14.5 GB VRAM. With a 4-bit Llama-3.1-8B
-        # backbone and a 6148-token input context, generating 2048
-        # tokens can require several additional GB for the KV cache.
-        #
-        # Keep the configured max_new_tokens API unchanged, but cap the
-        # actual generation length at 512 for this constrained GPU.
-        #
-        # Input context remains controlled by MAX_INPUT_TOKENS.
+        # MAX_NEW_TOKENS from config is the single source of truth.
+        # Do not introduce another hidden output-token cap.
         # --------------------------------------------------------------
 
-        safe_max_new_tokens = min(
-            self.max_new_tokens,
-            512,
-        )
-
         kwargs = {
-            "max_new_tokens": safe_max_new_tokens,
+            "max_new_tokens": self.max_new_tokens,
             "do_sample": self.do_sample,
             "pad_token_id": (
                 self.tokenizer.pad_token_id
@@ -1496,6 +1518,12 @@ class Generator:
 
         if require_grad:
 
+            # GRPO requires gradients through the policy
+            # log-probabilities.  Make sure the shared model is in
+            # training mode and that gradient checkpointing is active
+            # before retaining the differentiable tensors.
+            self._prepare_training_forward()
+
             return [
                 self._compute_single_log_probs(
                     prompt=prompt,
@@ -1522,6 +1550,79 @@ class Generator:
                 )
             ]
 
+    def _prepare_training_forward(
+        self,
+    ) -> None:
+        """
+        Prepare the shared policy model for differentiable GRPO scoring.
+
+        This is an execution/memory change only.  It does not change
+        the GRPO objective, rewards, advantages, candidate count, or
+        returned log-probability format.
+        """
+
+        self._activate_adapter()
+
+        # Gradient checkpointing is useful only for differentiable
+        # training forwards.  The previous path could leave the model
+        # in eval mode before computing policy log probabilities.
+        self.model.train()
+
+        shared_model = getattr(
+            self.model,
+            "_shared_model",
+            self.model,
+        )
+
+        if config.USE_GRADIENT_CHECKPOINTING:
+
+            enable_checkpointing = getattr(
+                shared_model,
+                "gradient_checkpointing_enable",
+                None,
+            )
+
+            if enable_checkpointing is not None:
+
+                try:
+
+                    enable_checkpointing(
+                        gradient_checkpointing_kwargs={
+                            "use_reentrant": False,
+                        }
+                    )
+
+                except TypeError:
+
+                    # Compatibility with older Transformers versions.
+                    enable_checkpointing()
+
+        # KV cache must not be used during differentiable teacher-forced
+        # scoring.  Disable it on both the PEFT wrapper and underlying
+        # base model configuration where available.
+        for model_object in (
+            shared_model,
+            getattr(
+                shared_model,
+                "base_model",
+                None,
+            ),
+        ):
+
+            if model_object is None:
+
+                continue
+
+            model_config = getattr(
+                model_object,
+                "config",
+                None,
+            )
+
+            if model_config is not None:
+
+                model_config.use_cache = False
+
     def _compute_single_log_probs(
         self,
         prompt: str,
@@ -1532,6 +1633,10 @@ class Generator:
 
         Only response-token log probabilities are returned.
         Prompt-token probabilities are excluded.
+
+        The prompt is tokenized with the same max_input_tokens limit
+        used by generation.  The response is then appended for
+        teacher-forced causal scoring.
         """
 
         self._activate_adapter()
@@ -1544,22 +1649,12 @@ class Generator:
             max_length=self.max_input_tokens,
         )
 
-        # --------------------------------------------------------------
-        # MEMORY FIX:
-        #
-        # Keep response scoring bounded by the same 512-token generation
-        # limit used above.
-        # --------------------------------------------------------------
-
         response_tokens = self.tokenizer(
             response,
             add_special_tokens=False,
             return_tensors="pt",
             truncation=True,
-            max_length=min(
-                self.max_new_tokens,
-                512,
-            ),
+            max_length=self.max_new_tokens,
         )
 
         prompt_ids = (
@@ -1583,33 +1678,17 @@ class Generator:
             )
 
         # --------------------------------------------------------------
-        # The total sequence must fit inside max_input_tokens.
-        # Reserve enough space for the complete response.
+        # IMPORTANT GRPO CONTEXT RULE:
+        #
+        # Generation truncates the prompt to max_input_tokens.
+        # Therefore GRPO must score the sampled response against that
+        # same prompt, rather than changing the prompt to
+        # max_input_tokens - response_length.
+        #
+        # The previous implementation changed the conditioning context
+        # whenever the response was non-empty.  That produced policy
+        # log-probabilities for a different prompt from the rollout.
         # --------------------------------------------------------------
-
-        available_prompt_tokens = (
-            self.max_input_tokens
-            - response_ids.numel()
-        )
-
-        if (
-            available_prompt_tokens
-            <= 0
-        ):
-
-            raise ValueError(
-                "Response is too long for the "
-                "configured context window."
-            )
-
-        if (
-            prompt_ids.numel()
-            > available_prompt_tokens
-        ):
-
-            prompt_ids = prompt_ids[
-                -available_prompt_tokens:
-            ]
 
         prompt_length = (
             prompt_ids.numel()
@@ -1618,6 +1697,48 @@ class Generator:
         response_length = (
             response_ids.numel()
         )
+
+        # If the underlying model has a smaller hard context limit than
+        # max_input_tokens + response length, truncate only as much as
+        # required to satisfy that actual model limit.
+        model_config = getattr(
+            self.model,
+            "config",
+            None,
+        )
+
+        model_max_length = getattr(
+            model_config,
+            "max_position_embeddings",
+            None,
+        )
+
+        if (
+            model_max_length is not None
+            and model_max_length > 0
+            and prompt_length + response_length
+            > model_max_length
+        ):
+
+            available_prompt_tokens = (
+                model_max_length
+                - response_length
+            )
+
+            if available_prompt_tokens <= 0:
+
+                raise ValueError(
+                    "Response is too long for the model's "
+                    "context window."
+                )
+
+            prompt_ids = prompt_ids[
+                -available_prompt_tokens:
+            ]
+
+            prompt_length = (
+                prompt_ids.numel()
+            )
 
         input_ids = torch.cat(
             [
@@ -1635,9 +1756,22 @@ class Generator:
             input_ids
         )
 
+        # --------------------------------------------------------------
+        # MEMORY:
+        #
+        # Teacher-forced GRPO scoring does not need a KV cache.
+        # Explicitly disable it even if the model was previously used
+        # for autoregressive generation.
+        #
+        # With gradient checkpointing enabled and the model in training
+        # mode, transformer activations are recomputed during backward
+        # instead of all layer activations being retained.
+        # --------------------------------------------------------------
+
         outputs = self.model(
             input_ids=input_ids,
             attention_mask=attention_mask,
+            use_cache=False,
         )
 
         logits = outputs.logits
@@ -1645,10 +1779,10 @@ class Generator:
         # --------------------------------------------------------------
         # Causal LM alignment:
         #
-        # logits[t] predicts token[t + 1]
+        # logits[t] predicts token[t + 1].
         #
-        # Therefore the first response token is predicted by
-        # the last prompt token.
+        # Therefore the first response token is predicted by the last
+        # prompt token.
         # --------------------------------------------------------------
 
         response_logits = logits[

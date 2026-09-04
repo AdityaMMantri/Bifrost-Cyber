@@ -44,11 +44,10 @@ Typical users:
 
 
 from __future__ import annotations
-
 import json
+import shutil
 from pathlib import Path
 from typing import Any, Iterable, List, Optional
-
 
 class FileUtils:
     """
@@ -63,15 +62,12 @@ class FileUtils:
     # ========================================================================
 
     @staticmethod
-    def to_path(
-        path: str | Path,
-    ) -> Path:
+    def to_path(path: str | Path) -> Path:
         """
         Convert a string or Path into a Path object.
 
         Does not require the path to exist.
         """
-
         return Path(path).expanduser()
 
     # ========================================================================
@@ -79,49 +75,32 @@ class FileUtils:
     # ========================================================================
 
     @staticmethod
-    def file_exists(
-        path: str | Path,
-    ) -> bool:
+    def file_exists(path: str | Path) -> bool:
         """
         Return True if the given path exists and is a file.
         """
-
-        return (
-            FileUtils.to_path(path).is_file()
-        )
+        return (FileUtils.to_path(path).is_file())
 
     @staticmethod
-    def directory_exists(
-        path: str | Path,
-    ) -> bool:
+    def directory_exists(path: str | Path) -> bool:
         """
         Return True if the given path exists and is a directory.
         """
-
-        return (
-            FileUtils.to_path(path).is_dir()
-        )
+        return (FileUtils.to_path(path).is_dir())
 
     @staticmethod
-    def exists(
-        path: str | Path,
-    ) -> bool:
+    def exists(path: str | Path) -> bool:
         """
         Return True if the given path exists.
         """
-
-        return (
-            FileUtils.to_path(path).exists()
-        )
+        return (FileUtils.to_path(path).exists())
 
     # ========================================================================
     # DIRECTORY OPERATIONS
     # ========================================================================
 
     @staticmethod
-    def ensure_directory(
-        path: str | Path,
-    ) -> Path:
+    def ensure_directory(path: str | Path) -> Path:
         """
         Create a directory if it does not already exist.
 
@@ -131,15 +110,8 @@ class FileUtils:
             Path object representing the directory.
         """
 
-        directory = FileUtils.to_path(
-            path
-        )
-
-        directory.mkdir(
-            parents=True,
-            exist_ok=True,
-        )
-
+        directory = FileUtils.to_path(path)
+        directory.mkdir(parents=True,exist_ok=True)
         return directory
 
     # ========================================================================
@@ -147,10 +119,7 @@ class FileUtils:
     # ========================================================================
 
     @staticmethod
-    def read_text(
-        path: str | Path,
-        encoding: str = "utf-8",
-    ) -> str:
+    def read_text(path: str | Path,encoding: str = "utf-8") -> str:
         """
         Read a text file and return its contents.
 
@@ -163,33 +132,19 @@ class FileUtils:
 
         No file-type or extension assumptions are made.
         """
-
-        file_path = FileUtils.to_path(
-            path
-        )
-
+        file_path = FileUtils.to_path(path)
         if not file_path.exists():
-
             raise FileNotFoundError(
                 f"File does not exist: "
-                f"{file_path}"
-            )
+                f"{file_path}")
 
         if not file_path.is_file():
-
             raise IsADirectoryError(
                 f"Expected a file but found "
-                f"a directory: {file_path}"
-            )
-
+                f"a directory: {file_path}")
         try:
-
-            return file_path.read_text(
-                encoding=encoding
-            )
-
+            return file_path.read_text(encoding=encoding)
         except UnicodeDecodeError as exc:
-
             raise UnicodeDecodeError(
                 exc.encoding,
                 exc.object,
@@ -199,39 +154,22 @@ class FileUtils:
                     f"Unable to decode file "
                     f"'{file_path}' using "
                     f"encoding '{encoding}'."
-                ),
-            ) from exc
+                )) from exc
 
     # ========================================================================
     # TEXT WRITING
     # ========================================================================
 
     @staticmethod
-    def write_text(
-        path: str | Path,
-        content: str,
-        encoding: str = "utf-8",
-    ) -> Path:
+    def write_text(path: str | Path,content: str,encoding: str = "utf-8") -> Path:
         """
         Write text content to a file.
 
         Parent directories are created automatically.
         """
-
-        file_path = FileUtils.to_path(
-            path
-        )
-
-        file_path.parent.mkdir(
-            parents=True,
-            exist_ok=True,
-        )
-
-        file_path.write_text(
-            content,
-            encoding=encoding,
-        )
-
+        file_path = FileUtils.to_path(path)
+        file_path.parent.mkdir(parents=True,exist_ok=True)
+        file_path.write_text(content,encoding=encoding)
         return file_path
 
     # ========================================================================
@@ -239,10 +177,7 @@ class FileUtils:
     # ========================================================================
 
     @staticmethod
-    def read_json(
-        path: str | Path,
-        encoding: str = "utf-8",
-    ) -> Any:
+    def read_json(path: str | Path,encoding: str = "utf-8") -> Any:
         """
         Read and parse a JSON file.
 
@@ -256,30 +191,17 @@ class FileUtils:
         the original exception so that the caller knows
         the file is malformed.
         """
-
-        file_path = FileUtils.to_path(
-            path
-        )
-
+        file_path = FileUtils.to_path(path)
         if not file_path.exists():
-
             raise FileNotFoundError(
                 f"JSON file does not exist: "
-                f"{file_path}"
-            )
-
+                f"{file_path}")
         if not file_path.is_file():
-
             raise IsADirectoryError(
                 f"Expected a JSON file but "
-                f"found a directory: {file_path}"
-            )
-
-        with file_path.open(
-            "r",
-            encoding=encoding,
-        ) as file:
-
+                f"found a directory: {file_path}")
+        
+        with file_path.open("r",encoding=encoding) as file:
             return json.load(file)
 
     # ========================================================================
@@ -287,39 +209,16 @@ class FileUtils:
     # ========================================================================
 
     @staticmethod
-    def write_json(
-        path: str | Path,
-        data: Any,
-        encoding: str = "utf-8",
-        indent: int = 2,
-    ) -> Path:
+    def write_json(path: str | Path,data: Any,encoding: str = "utf-8",indent: int = 2) -> Path:
         """
         Serialize data to a JSON file.
 
         Parent directories are created automatically.
         """
-
-        file_path = FileUtils.to_path(
-            path
-        )
-
-        file_path.parent.mkdir(
-            parents=True,
-            exist_ok=True,
-        )
-
-        with file_path.open(
-            "w",
-            encoding=encoding,
-        ) as file:
-
-            json.dump(
-                data,
-                file,
-                indent=indent,
-                ensure_ascii=False,
-            )
-
+        file_path = FileUtils.to_path(path)
+        file_path.parent.mkdir(parents=True,exist_ok=True)
+        with file_path.open("w",encoding=encoding) as file:
+            json.dump(data,file,indent=indent,ensure_ascii=False)
         return file_path
 
     # ========================================================================
@@ -327,11 +226,7 @@ class FileUtils:
     # ========================================================================
 
     @staticmethod
-    def append_jsonl(
-        path: str | Path,
-        data: Any,
-        encoding: str = "utf-8",
-    ) -> Path:
+    def append_jsonl(path: str | Path,data: Any,encoding: str = "utf-8") -> Path:
         """
         Append one JSON object/record to a JSONL file.
 
@@ -343,29 +238,11 @@ class FileUtils:
 
             metrics_logger.py
         """
-
-        file_path = FileUtils.to_path(
-            path
-        )
-
-        file_path.parent.mkdir(
-            parents=True,
-            exist_ok=True,
-        )
-
-        with file_path.open(
-            "a",
-            encoding=encoding,
-        ) as file:
-
-            json.dump(
-                data,
-                file,
-                ensure_ascii=False,
-            )
-
+        file_path = FileUtils.to_path(path)
+        file_path.parent.mkdir(parents=True,exist_ok=True)
+        with file_path.open("a",encoding=encoding) as file:
+            json.dump(data,file,ensure_ascii=False)
             file.write("\n")
-
         return file_path
 
     # ========================================================================
@@ -373,52 +250,27 @@ class FileUtils:
     # ========================================================================
 
     @staticmethod
-    def read_jsonl(
-        path: str | Path,
-        encoding: str = "utf-8",
-    ) -> List[Any]:
+    def read_jsonl(path: str | Path,encoding: str = "utf-8") -> List[Any]:
         """
         Read all records from a JSONL file.
 
         Empty lines are ignored.
         """
-
-        file_path = FileUtils.to_path(
-            path
-        )
-
+        file_path = FileUtils.to_path(path)
         if not file_path.exists():
-
             raise FileNotFoundError(
                 f"JSONL file does not exist: "
-                f"{file_path}"
-            )
+                f"{file_path}")
 
         records: List[Any] = []
-
-        with file_path.open(
-            "r",
-            encoding=encoding,
-        ) as file:
-
-            for line_number, line in enumerate(
-                file,
-                start=1,
-            ):
-
+        with file_path.open("r",encoding=encoding) as file:
+            for line_number, line in enumerate(file,start=1):
                 line = line.strip()
-
                 if not line:
                     continue
-
                 try:
-
-                    records.append(
-                        json.loads(line)
-                    )
-
+                    records.append(json.loads(line))
                 except json.JSONDecodeError as exc:
-
                     raise ValueError(
                         f"Invalid JSONL record "
                         f"at line {line_number} "
@@ -433,10 +285,7 @@ class FileUtils:
     # ========================================================================
 
     @staticmethod
-    def list_files(
-        directory: str | Path,
-        recursive: bool = False,
-    ) -> List[Path]:
+    def list_files(directory: str | Path,recursive: bool = False) -> List[Path]:
         """
         Return files contained in a directory.
 
@@ -449,41 +298,23 @@ class FileUtils:
             PathResolver
         """
 
-        directory_path = (
-            FileUtils.to_path(
-                directory
-            )
-        )
+        directory_path = (FileUtils.to_path(directory))
 
         if not directory_path.exists():
-
             raise FileNotFoundError(
                 f"Directory does not exist: "
-                f"{directory_path}"
-            )
+                f"{directory_path}")
 
         if not directory_path.is_dir():
-
             raise NotADirectoryError(
                 f"Expected a directory: "
-                f"{directory_path}"
-            )
+                f"{directory_path}")
 
         if recursive:
-
-            files = [
-                path
-                for path in directory_path.rglob("*")
-                if path.is_file()
-            ]
+            files = [path for path in directory_path.rglob("*") if path.is_file()]
 
         else:
-
-            files = [
-                path
-                for path in directory_path.iterdir()
-                if path.is_file()
-            ]
+            files = [path for path in directory_path.iterdir() if path.is_file()]
 
         return sorted(files)
 
@@ -492,72 +323,44 @@ class FileUtils:
     # ========================================================================
 
     @staticmethod
-    def list_directories(
-        directory: str | Path,
-    ) -> List[Path]:
+    def list_directories(directory: str | Path) -> List[Path]:
         """
         Return immediate subdirectories.
 
         No scenario-specific filtering is performed here.
         """
-
-        directory_path = (
-            FileUtils.to_path(
-                directory
-            )
-        )
-
+        directory_path = (FileUtils.to_path(directory))
         if not directory_path.exists():
-
             raise FileNotFoundError(
                 f"Directory does not exist: "
-                f"{directory_path}"
-            )
+                f"{directory_path}")
 
         if not directory_path.is_dir():
-
             raise NotADirectoryError(
                 f"Expected a directory: "
-                f"{directory_path}"
-            )
+                f"{directory_path}")
 
-        return sorted(
-            [
-                path
-                for path in directory_path.iterdir()
-                if path.is_dir()
-            ]
-        )
+        return sorted([path for path in directory_path.iterdir() if path.is_dir()])
 
     # ========================================================================
     # FILE SIZE
     # ========================================================================
 
     @staticmethod
-    def file_size(
-        path: str | Path,
-    ) -> int:
+    def file_size(path: str | Path) -> int:
         """
         Return file size in bytes.
         """
-
-        file_path = FileUtils.to_path(
-            path
-        )
-
+        file_path = FileUtils.to_path(path)
         if not file_path.exists():
-
             raise FileNotFoundError(
                 f"File does not exist: "
-                f"{file_path}"
-            )
+                f"{file_path}")
 
         if not file_path.is_file():
-
             raise IsADirectoryError(
                 f"Expected a file: "
-                f"{file_path}"
-            )
+                f"{file_path}")
 
         return file_path.stat().st_size
 
@@ -566,9 +369,7 @@ class FileUtils:
     # ========================================================================
 
     @staticmethod
-    def remove_file(
-        path: str | Path,
-    ) -> None:
+    def remove_file(path: str | Path) -> None:
         """
         Remove a file if it exists.
 
@@ -576,20 +377,16 @@ class FileUtils:
 
         It will not recursively delete directories.
         """
-
-        file_path = FileUtils.to_path(
-            path
-        )
+        file_path = FileUtils.to_path(path)
 
         if not file_path.exists():
             return
-
+        
         if not file_path.is_file():
 
             raise IsADirectoryError(
                 f"Expected a file: "
-                f"{file_path}"
-            )
+                f"{file_path}")
 
         file_path.unlink()
 
@@ -598,10 +395,7 @@ class FileUtils:
     # ========================================================================
 
     @staticmethod
-    def copy_file(
-        source: str | Path,
-        destination: str | Path,
-    ) -> Path:
+    def copy_file(source: str | Path,destination: str | Path) -> Path:
         """
         Copy a file to another location.
 
@@ -609,41 +403,21 @@ class FileUtils:
 
         Model/checkpoint-specific copying logic does not belong here.
         """
-
-        import shutil
-
-        source_path = FileUtils.to_path(
-            source
-        )
-
-        destination_path = (
-            FileUtils.to_path(
-                destination
-            )
-        )
+        source_path = FileUtils.to_path(source)
+        destination_path = (FileUtils.to_path(destination))
 
         if not source_path.exists():
 
             raise FileNotFoundError(
                 f"Source file does not exist: "
-                f"{source_path}"
-            )
+                f"{source_path}")
 
         if not source_path.is_file():
 
             raise IsADirectoryError(
                 f"Source is not a file: "
-                f"{source_path}"
-            )
+                f"{source_path}")
 
-        destination_path.parent.mkdir(
-            parents=True,
-            exist_ok=True,
-        )
-
-        shutil.copy2(
-            source_path,
-            destination_path,
-        )
-
+        destination_path.parent.mkdir(parents=True,exist_ok=True)
+        shutil.copy2(source_path,destination_path)
         return destination_path

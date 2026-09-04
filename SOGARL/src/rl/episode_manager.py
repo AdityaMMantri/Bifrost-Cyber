@@ -13,6 +13,10 @@ Flow:
        ↓
     Red GRPO
        ↓
+    Attack_best
+       ↓
+    Confidence Gate
+       ↓
     Blue Turn 2
        ↓
     Oracle
@@ -103,35 +107,43 @@ class EpisodeResult:
             "scenario_id": self.scenario_id,
             "episode_id": self.episode_id,
             "epoch": self.epoch,
+
             "red_candidates": [
                 self._candidate_to_dict(
                     candidate
                 )
                 for candidate in self.red_candidates
             ],
+
             "blue_candidates": [
                 self._candidate_to_dict(
                     candidate
                 )
                 for candidate in self.blue_candidates
             ],
+
             "top_k_blue_candidates": [
                 self._candidate_to_dict(
                     candidate
                 )
                 for candidate in self.top_k_blue_candidates
             ],
+
             "challenges": [
                 self._generation_to_dict(
                     generation
                 )
                 for generation in self.challenges
             ],
+
             "interaction_results": (
                 self.interaction_results
             ),
+
             "red_update": self.red_update,
+
             "blue_update": self.blue_update,
+
             "episode_metrics": self.episode_metrics,
         }
 
@@ -154,30 +166,43 @@ class EpisodeResult:
 
         return {
             "response": candidate.response,
-            "oracle_reward": candidate.oracle_reward,
-            "candidate_index": candidate.candidate_index,
+
+            "oracle_reward": (
+                candidate.oracle_reward
+            ),
+
+            "candidate_index": (
+                candidate.candidate_index
+            ),
+
             "prompt": getattr(
                 candidate,
                 "prompt",
                 "",
             ),
+
             "generation_type": getattr(
                 candidate,
                 "generation_type",
                 "",
             ),
+
             "interaction_reward": (
                 candidate.interaction_reward
             ),
+
             "oracle_advantage": (
                 candidate.oracle_advantage
             ),
+
             "interaction_advantage": (
                 candidate.interaction_advantage
             ),
+
             "final_advantage": (
                 candidate.final_advantage
             ),
+
             "metadata": metadata,
         }
 
@@ -200,16 +225,23 @@ class EpisodeResult:
 
         return {
             "response": generation.response,
+
             "prompt": generation.prompt,
+
             "model_name": generation.model_name,
+
             "temperature": generation.temperature,
+
             "generation_index": (
                 generation.generation_index
             ),
+
             "turn": generation.turn,
+
             "generation_type": (
                 generation.generation_type
             ),
+
             "metadata": metadata,
         }
 
@@ -252,6 +284,7 @@ class EpisodeManager:
         self.blue_generator = blue_generator
 
         self.oracle = oracle
+
         self.interaction_checker = (
             interaction_checker
         )
@@ -301,6 +334,10 @@ class EpisodeManager:
                 f"Scenario: {scenario.scenario_id}"
             )
 
+        # --------------------------------------------------------------
+        # PREPARE SAFE MODEL CONTEXT
+        # --------------------------------------------------------------
+
         context = self._prepare_context(
             scenario
         )
@@ -322,6 +359,22 @@ class EpisodeManager:
             )
         )
 
+        red_category = self._scenario_category(
+            scenario
+        )
+
+        for candidate in red_candidates:
+            candidate.metadata[
+                "scenario_category"
+            ] = red_category
+
+        # --------------------------------------------------------------
+        # Red Turn 1 is trained ONLY using Oracle advantages.
+        #
+        # This is the single Red GRPO update for the episode.
+        # Turn-3 interaction rewards are NOT used for another Red update.
+        # --------------------------------------------------------------
+
         red_update = None
 
         if (
@@ -340,7 +393,7 @@ class EpisodeManager:
             )
 
         # ==============================================================
-        # SELECT RED ATTACK
+        # SELECT ATTACK_BEST + CONFIDENCE GATE
         # ==============================================================
 
         red_attack = (
@@ -378,6 +431,9 @@ class EpisodeManager:
 
         # ==============================================================
         # TURN 3 — RED CHALLENGES
+        #
+        # Exactly the selected Top-K defenses are challenged.
+        # No challenge is generated for unselected Blue candidates.
         # ==============================================================
 
         challenges: List[
@@ -414,7 +470,7 @@ class EpisodeManager:
             )
 
         # ==============================================================
-        # BLUE INTERACTION REWARD
+        # APPLY TURN-3 INTERACTION REWARDS
         # ==============================================================
 
         self._apply_interaction_rewards(
@@ -425,16 +481,42 @@ class EpisodeManager:
 
         # ==============================================================
         # BLUE FINAL ADVANTAGE
+        #
+        # RewardManager:
+        #
+        #     A_oracle
+        #         ↓
+        #     A_interaction
+        #         ↓
+        #     alpha*A_oracle + beta*A_interaction
+        #
+        # Interaction normalization is performed ONLY over tested
+        # Top-K candidates.
         # ==============================================================
 
-        self.reward_manager.process_blue_candidates(
-            candidates=blue_candidates,
-            category=(
-                self._scenario_category(
-                    scenario
-                )
-            ),
+        category = self._scenario_category(
+            scenario
         )
+
+        # Training updates category history after computing the current
+        # episode's beta. Evaluation must remain read-only: test episodes
+        # must not modify the category history used by RewardManager.
+        if training:
+            self.reward_manager.process_blue_candidates(
+                candidates=blue_candidates,
+                category=category,
+            )
+        else:
+            self.reward_manager.calculate_final_advantages(
+                candidates=blue_candidates,
+                category=category,
+            )
+
+        # ==============================================================
+        # BLUE GRPO
+        #
+        # Exactly one Blue GRPO update per episode.
+        # ==============================================================
 
         blue_update = None
 
@@ -467,22 +549,35 @@ class EpisodeManager:
                 ),
                 red_update=red_update,
                 blue_update=blue_update,
+                confidence_gate_passed=(
+                    red_attack is not None
+                ),
             )
         )
 
         result = EpisodeResult(
             scenario_id=scenario.scenario_id,
+
             red_candidates=red_candidates,
+
             blue_candidates=blue_candidates,
+
             top_k_blue_candidates=top_k_blue,
+
             challenges=challenges,
+
             interaction_results=(
                 interaction_results
             ),
+
             red_update=red_update,
+
             blue_update=blue_update,
+
             episode_metrics=episode_metrics,
+
             episode_id=episode_id,
+
             epoch=epoch,
         )
 
@@ -623,16 +718,21 @@ class EpisodeManager:
             candidates.append(
                 ScoredCandidate(
                     response=generation.response,
+
                     oracle_reward=(
                         oracle_result.reward
                     ),
+
                     candidate_index=(
                         generation.generation_index
                     ),
+
                     prompt=generation.prompt,
+
                     generation_type=(
                         generation.generation_type
                     ),
+
                     metadata=metadata,
                 )
             )
@@ -689,19 +789,76 @@ class EpisodeManager:
 
             return best_candidate
 
-        rewards = torch.tensor(
-            [
-                candidate.oracle_reward
-                for candidate in candidates
-            ],
-            dtype=torch.float32,
+        # --------------------------------------------------------------
+        # Category-relative confidence gate.
+        #
+        # Use historical category statistics rather than the current
+        # rollout group. This prevents the gate from being defined by
+        # the same eight candidates it is supposed to assess.
+        #
+        # Until enough category history exists, the gate is not applied;
+        # the best Red candidate is passed through normally. This avoids
+        # making an early-training decision from an undefined baseline.
+        # --------------------------------------------------------------
+
+        category = getattr(
+            best_candidate,
+            "metadata",
+            {},
+        ).get(
+            "scenario_category"
         )
 
-        mean = rewards.mean()
+        if not category:
+            # The category is attached by _select_red_context's caller
+            # through candidate metadata when available. Fall back to the
+            # existing rollout-relative behavior only when no category
+            # information is available.
+            rewards = torch.tensor(
+                [
+                    float(
+                        candidate.oracle_reward
+                    )
+                    for candidate in candidates
+                ],
+                dtype=torch.float32,
+            )
 
-        std = rewards.std(
-            unbiased=False
-        )
+            mean = rewards.mean()
+            std = rewards.std(
+                unbiased=False
+            )
+
+        else:
+            statistics = (
+                self.reward_manager
+                .get_category_statistics(
+                    str(category)
+                )
+            )
+
+            minimum_episodes = int(
+                getattr(
+                    config,
+                    "MIN_CATEGORY_EPISODES_FOR_GATE",
+                    20,
+                )
+            )
+
+            if (
+                statistics["episode_count"]
+                < minimum_episodes
+            ):
+                return best_candidate
+
+            mean = torch.tensor(
+                statistics["mean_reward"],
+                dtype=torch.float32,
+            )
+            std = torch.tensor(
+                statistics["std_reward"],
+                dtype=torch.float32,
+            )
 
         threshold = (
             mean
@@ -822,16 +979,21 @@ class EpisodeManager:
             candidates.append(
                 ScoredCandidate(
                     response=generation.response,
+
                     oracle_reward=(
                         oracle_result.reward
                     ),
+
                     candidate_index=(
                         generation.generation_index
                     ),
+
                     prompt=generation.prompt,
+
                     generation_type=(
                         generation.generation_type
                     ),
+
                     metadata=metadata,
                 )
             )
@@ -890,22 +1052,29 @@ class EpisodeManager:
         return (
             self.red_generator.generate_one(
                 prompt=prompt,
+
                 temperature=(
                     config.CHALLENGE_TEMPERATURE
                 ),
+
                 generation_index=(
                     blue_candidate.candidate_index
                 ),
+
                 metadata={
                     "turn": 3,
+
                     "generation_type": (
                         "red_challenge"
                     ),
+
                     "defense_candidate_index": (
                         blue_candidate.candidate_index
                     ),
                 },
+
                 turn=3,
+
                 generation_type="red_challenge",
             )
         )
@@ -924,7 +1093,9 @@ class EpisodeManager:
         result = (
             self.oracle.evaluate_interaction(
                 response=challenge.response,
+
                 scenario=scenario,
+
                 blue_defense=(
                     blue_candidate.response
                 ),
@@ -997,6 +1168,10 @@ class EpisodeManager:
             float,
         ] = {}
 
+        # --------------------------------------------------------------
+        # Collect rewards ONLY from actual Turn-3 evaluations.
+        # --------------------------------------------------------------
+
         for result in interaction_results:
 
             index = result.get(
@@ -1026,10 +1201,30 @@ class EpisodeManager:
                 result["blue_reward"]
             )
 
+        # --------------------------------------------------------------
+        # These are the only candidates that were actually tested.
+        # --------------------------------------------------------------
+
         tested_indices = {
             candidate.candidate_index
             for candidate in top_k_candidates
         }
+
+        # --------------------------------------------------------------
+        # IMPORTANT SOGARL RULE:
+        #
+        # Tested Top-K candidates:
+        #     interaction_reward = actual Turn-3 reward
+        #
+        # Untested candidates:
+        #     interaction_reward = None
+        #
+        # None is required here because RewardManager must EXCLUDE
+        # untested candidates from interaction normalization.
+        #
+        # A zero reward would incorrectly turn "not tested" into an
+        # observed zero-reward interaction.
+        # --------------------------------------------------------------
 
         for candidate in all_blue_candidates:
 
@@ -1038,17 +1233,25 @@ class EpisodeManager:
                 not in tested_indices
             ):
 
-                candidate.interaction_reward = (
-                    0.0
-                )
+                candidate.interaction_reward = None
 
             else:
 
-                candidate.interaction_reward = (
-                    rewards_by_index.get(
-                        candidate.candidate_index,
-                        0.0,
+                if (
+                    candidate.candidate_index
+                    not in rewards_by_index
+                ):
+
+                    raise ValueError(
+                        "Top-K Blue candidate was selected "
+                        "for interaction testing but no "
+                        "interaction reward was returned."
                     )
+
+                candidate.interaction_reward = (
+                    rewards_by_index[
+                        candidate.candidate_index
+                    ]
                 )
 
     # ==================================================================
@@ -1081,35 +1284,49 @@ class EpisodeManager:
 
         reference_generator = Generator(
             model=reference_model,
-            tokenizer=generator.get_tokenizer(),
-            device=generator.get_device(),
+
+            tokenizer=(
+                generator.get_tokenizer()
+            ),
+
+            device=(
+                generator.get_device()
+            ),
+
             role=role,
+
             model_name=(
                 generation_config[
                     "model_name"
                 ]
             ),
+
             max_input_tokens=(
                 generation_config[
                     "max_input_tokens"
                 ]
             ),
+
             max_new_tokens=(
                 generation_config[
                     "max_new_tokens"
                 ]
             ),
+
             top_p=(
                 generation_config[
                     "top_p"
                 ]
             ),
+
             do_sample=False,
+
             generation_batch_size=(
                 generation_config[
                     "generation_batch_size"
                 ]
             ),
+
             logger=None,
         )
 
@@ -1255,7 +1472,9 @@ class EpisodeManager:
 
         return self._update_policy(
             trainer=self.red_trainer,
+
             candidates=candidates,
+
             advantage_key="oracle_advantage",
         )
 
@@ -1270,7 +1489,9 @@ class EpisodeManager:
 
         return self._update_policy(
             trainer=self.blue_trainer,
+
             candidates=candidates,
+
             advantage_key="final_advantage",
         )
 
@@ -1386,12 +1607,17 @@ class EpisodeManager:
 
         metrics = trainer.update(
             current_log_probs=current_tensor,
+
             old_log_probs=old_tensor,
+
             reference_log_probs=(
                 reference_tensor
             ),
+
             advantages=advantages,
+
             normalize_advantages=True,
+
             response_mask=mask,
         )
 
@@ -1527,6 +1753,7 @@ class EpisodeManager:
         interaction_results: List[Dict[str, Any]],
         red_update: Optional[Dict[str, float]],
         blue_update: Optional[Dict[str, float]],
+        confidence_gate_passed: bool = False,
     ) -> Dict[str, Any]:
 
         red_rewards = [
@@ -1601,60 +1828,177 @@ class EpisodeManager:
                 + 1
             )
 
-        return {
+        # Keep the existing nested metrics for backward compatibility,
+        # while also exposing the important scalar values directly so
+        # training_metrics.jsonl and the Red/Blue CSVs are easy to analyze.
+        red_update = red_update or {}
+        blue_update = blue_update or {}
+
+        metrics = {
             "red_rollouts": len(
                 red_candidates
             ),
+
             "blue_rollouts": len(
                 blue_candidates
             ),
+
             "top_k": len(
                 top_k_blue
             ),
+
             "interaction_tests": len(
                 interaction_results
             ),
+
             "red_mean_oracle_reward": (
                 self._mean(
                     red_rewards
                 )
             ),
+
+            "red_best_oracle_reward": (
+                max(red_rewards)
+                if red_rewards
+                else 0.0
+            ),
+
+            "red_std_oracle_reward": (
+                self._std(
+                    red_rewards
+                )
+            ),
+
             "blue_mean_oracle_reward": (
                 self._mean(
                     blue_rewards
                 )
             ),
+
+            "blue_best_oracle_reward": (
+                max(blue_rewards)
+                if blue_rewards
+                else 0.0
+            ),
+
+            "blue_std_oracle_reward": (
+                self._std(
+                    blue_rewards
+                )
+            ),
+
             "blue_mean_interaction_reward": (
                 self._mean(
                     interaction_rewards
                 )
             ),
+
             "red_mean_oracle_advantage": (
                 self._mean(
                     red_advantages
                 )
             ),
+
             "blue_mean_oracle_advantage": (
                 self._mean(
                     blue_oracle_advantages
                 )
             ),
+
             "blue_mean_interaction_advantage": (
                 self._mean(
                     blue_interaction_advantages
                 )
             ),
+
             "blue_mean_final_advantage": (
                 self._mean(
                     blue_final_advantages
                 )
             ),
+
+            "confidence_gate_passed": bool(
+                confidence_gate_passed
+            ),
+
+            "interaction_case_1_count": int(
+                interaction_cases.get("1", 0)
+            ),
+
+            "interaction_case_2_count": int(
+                interaction_cases.get("2", 0)
+            ),
+
+            "interaction_case_3_count": int(
+                interaction_cases.get("3", 0)
+            ),
+
+            "interaction_case_4_count": int(
+                interaction_cases.get("4", 0)
+            ),
+
+            "interaction_case_5_count": int(
+                interaction_cases.get("5", 0)
+            ),
+
             "interaction_cases": (
                 interaction_cases
             ),
+
+            # Preserve the existing nested update dictionaries.
             "red_update": red_update,
+
             "blue_update": blue_update,
         }
+
+        # GRPOTrainer.update() already returns scalar metrics. Expose them
+        # under stable role-specific names without changing the trainer API.
+        metrics.update({
+            "red_grpo_total_loss": float(
+                red_update.get("total_loss", 0.0)
+            ),
+            "red_grpo_policy_loss": float(
+                red_update.get("policy_loss", 0.0)
+            ),
+            "red_grpo_kl_loss": float(
+                red_update.get("kl_loss", 0.0)
+            ),
+            "red_grpo_mean_advantage": float(
+                red_update.get("mean_advantage", 0.0)
+            ),
+            "red_grpo_mean_ratio": float(
+                red_update.get("mean_ratio", 0.0)
+            ),
+            "red_grpo_clipped_fraction": float(
+                red_update.get("clipped_fraction", 0.0)
+            ),
+            "red_grpo_valid_token_fraction": float(
+                red_update.get("valid_token_fraction", 0.0)
+            ),
+            "blue_grpo_total_loss": float(
+                blue_update.get("total_loss", 0.0)
+            ),
+            "blue_grpo_policy_loss": float(
+                blue_update.get("policy_loss", 0.0)
+            ),
+            "blue_grpo_kl_loss": float(
+                blue_update.get("kl_loss", 0.0)
+            ),
+            "blue_grpo_mean_advantage": float(
+                blue_update.get("mean_advantage", 0.0)
+            ),
+            "blue_grpo_mean_ratio": float(
+                blue_update.get("mean_ratio", 0.0)
+            ),
+            "blue_grpo_clipped_fraction": float(
+                blue_update.get("clipped_fraction", 0.0)
+            ),
+            "blue_grpo_valid_token_fraction": float(
+                blue_update.get("valid_token_fraction", 0.0)
+            ),
+        })
+
+        return metrics
 
     @staticmethod
     def _mean(
@@ -1668,6 +2012,27 @@ class EpisodeManager:
         return float(
             sum(values)
             / len(values)
+        )
+
+    @staticmethod
+    def _std(
+        values: Sequence[float],
+    ) -> float:
+
+        if not values:
+
+            return 0.0
+
+        mean = sum(values) / len(values)
+
+        return float(
+            (
+                sum(
+                    (value - mean) ** 2
+                    for value in values
+                )
+                / len(values)
+            ) ** 0.5
         )
 
     # ==================================================================
@@ -1685,9 +2050,22 @@ class EpisodeManager:
                 scenario_id=(
                     result.scenario_id
                 ),
+
                 episode_id=(
                     result.episode_id
                 ),
+
+                epoch=result.epoch,
+
+                category=(
+                    result.red_candidates[0].metadata.get(
+                        "scenario_category",
+                        "unknown",
+                    )
+                    if result.red_candidates
+                    else "unknown"
+                ),
+
                 red_attack_candidates=[
                     EpisodeResult._candidate_to_dict(
                         candidate
@@ -1695,6 +2073,7 @@ class EpisodeManager:
                     for candidate
                     in result.red_candidates
                 ],
+
                 blue_defense_candidates=[
                     EpisodeResult._candidate_to_dict(
                         candidate
@@ -1702,14 +2081,30 @@ class EpisodeManager:
                     for candidate
                     in result.blue_candidates
                 ],
+
+                top_k_blue_candidates=[
+                    EpisodeResult._candidate_to_dict(
+                        candidate
+                    )
+                    for candidate
+                    in result.top_k_blue_candidates
+                ],
+
+                episode_metrics=(
+                    result.episode_metrics
+                ),
+
                 interaction_results=(
                     result.interaction_results
                 ),
+
                 metadata={
                     "epoch": result.epoch,
+
                     "episode_metrics": (
                         result.episode_metrics
                     ),
+
                     "top_k_candidate_indices": [
                         candidate.candidate_index
                         for candidate
@@ -1724,17 +2119,149 @@ class EpisodeManager:
 
         if self.metrics_logger is not None:
 
+            base_metrics = dict(
+                result.episode_metrics
+            )
+
             self.metrics_logger.log_episode(
                 episode_id=(
                     result.episode_id
                 ),
+
                 scenario_id=(
                     result.scenario_id
                 ),
+
                 epoch=result.epoch,
-                metrics=(
-                    result.episode_metrics
-                ),
+
+                metrics=base_metrics,
+            )
+
+            # Dedicated Red row. Existing MetricsLogger API is preserved.
+            red_metrics = {
+                "episode_id": result.episode_id,
+                "scenario_id": result.scenario_id,
+                "epoch": result.epoch,
+                "rollouts": base_metrics[
+                    "red_rollouts"
+                ],
+                "mean_oracle_reward": base_metrics[
+                    "red_mean_oracle_reward"
+                ],
+                "best_oracle_reward": base_metrics[
+                    "red_best_oracle_reward"
+                ],
+                "std_oracle_reward": base_metrics[
+                    "red_std_oracle_reward"
+                ],
+                "mean_oracle_advantage": base_metrics[
+                    "red_mean_oracle_advantage"
+                ],
+                "confidence_gate_passed": base_metrics[
+                    "confidence_gate_passed"
+                ],
+                "grpo_total_loss": base_metrics[
+                    "red_grpo_total_loss"
+                ],
+                "grpo_policy_loss": base_metrics[
+                    "red_grpo_policy_loss"
+                ],
+                "grpo_kl_loss": base_metrics[
+                    "red_grpo_kl_loss"
+                ],
+                "grpo_mean_advantage": base_metrics[
+                    "red_grpo_mean_advantage"
+                ],
+                "grpo_mean_ratio": base_metrics[
+                    "red_grpo_mean_ratio"
+                ],
+                "grpo_clipped_fraction": base_metrics[
+                    "red_grpo_clipped_fraction"
+                ],
+                "grpo_valid_token_fraction": base_metrics[
+                    "red_grpo_valid_token_fraction"
+                ],
+            }
+
+            self.metrics_logger.log_red(
+                red_metrics
+            )
+
+            # Dedicated Blue row.
+            blue_metrics = {
+                "episode_id": result.episode_id,
+                "scenario_id": result.scenario_id,
+                "epoch": result.epoch,
+                "rollouts": base_metrics[
+                    "blue_rollouts"
+                ],
+                "top_k": base_metrics[
+                    "top_k"
+                ],
+                "interaction_tests": base_metrics[
+                    "interaction_tests"
+                ],
+                "mean_oracle_reward": base_metrics[
+                    "blue_mean_oracle_reward"
+                ],
+                "best_oracle_reward": base_metrics[
+                    "blue_best_oracle_reward"
+                ],
+                "std_oracle_reward": base_metrics[
+                    "blue_std_oracle_reward"
+                ],
+                "mean_oracle_advantage": base_metrics[
+                    "blue_mean_oracle_advantage"
+                ],
+                "mean_interaction_reward": base_metrics[
+                    "blue_mean_interaction_reward"
+                ],
+                "mean_interaction_advantage": base_metrics[
+                    "blue_mean_interaction_advantage"
+                ],
+                "mean_final_advantage": base_metrics[
+                    "blue_mean_final_advantage"
+                ],
+                "interaction_case_1_count": base_metrics[
+                    "interaction_case_1_count"
+                ],
+                "interaction_case_2_count": base_metrics[
+                    "interaction_case_2_count"
+                ],
+                "interaction_case_3_count": base_metrics[
+                    "interaction_case_3_count"
+                ],
+                "interaction_case_4_count": base_metrics[
+                    "interaction_case_4_count"
+                ],
+                "interaction_case_5_count": base_metrics[
+                    "interaction_case_5_count"
+                ],
+                "grpo_total_loss": base_metrics[
+                    "blue_grpo_total_loss"
+                ],
+                "grpo_policy_loss": base_metrics[
+                    "blue_grpo_policy_loss"
+                ],
+                "grpo_kl_loss": base_metrics[
+                    "blue_grpo_kl_loss"
+                ],
+                "grpo_mean_advantage": base_metrics[
+                    "blue_grpo_mean_advantage"
+                ],
+                "grpo_mean_ratio": base_metrics[
+                    "blue_grpo_mean_ratio"
+                ],
+                "grpo_clipped_fraction": base_metrics[
+                    "blue_grpo_clipped_fraction"
+                ],
+                "grpo_valid_token_fraction": base_metrics[
+                    "blue_grpo_valid_token_fraction"
+                ],
+            }
+
+            self.metrics_logger.log_blue(
+                blue_metrics
             )
 
         if self.logger:

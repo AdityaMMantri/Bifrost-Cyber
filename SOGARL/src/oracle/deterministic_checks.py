@@ -99,6 +99,16 @@ class DeterministicChecker:
             response
         )
 
+        # If the response does not use an explicit "Attack:" field,
+        # match against the scenario's known attack labels. This keeps
+        # deterministic extraction independent of programming language
+        # and supports dataset-specific attack names.
+        if claimed_attack is None:
+            claimed_attack = self._find_known_label(
+                response,
+                valid_attacks,
+            )
+
         claimed_files = self.extract_files(
             response
         )
@@ -194,6 +204,12 @@ class DeterministicChecker:
             response
         )
 
+        if claimed_defense is None:
+            claimed_defense = self._find_known_label(
+                response,
+                valid_defenses,
+            )
+
         claimed_files = self.extract_files(
             response
         )
@@ -286,13 +302,24 @@ class DeterministicChecker:
                 "claimed_attack_valid": False,
                 "claimed_attack_remains": False,
                 "no_attack_verified": False,
-                "real_attack_remains": self._real_attack_remains(
-                    scenario,
-                    blue_defense,
+                "real_attack_remains": (
+                    self._real_attack_remains(
+                        scenario,
+                        blue_defense,
+                    )
+                    if self._interaction_state_is_deterministic(
+                        scenario
+                    )
+                    else None
                 ),
                 "remaining_attacks": self._remaining_attacks(
                     scenario,
                     blue_defense,
+                ),
+                "interaction_state_deterministic": (
+                    self._interaction_state_is_deterministic(
+                        scenario
+                    )
                 ),
                 "explanation": "Empty Turn-3 response.",
             }
@@ -305,13 +332,27 @@ class DeterministicChecker:
             response
         )
 
+        if claimed_attack is None:
+            claimed_attack = self._find_known_label(
+                response,
+                self._get_valid_attacks(scenario),
+            )
+
         remaining_attacks = self._remaining_attacks(
             scenario,
             blue_defense,
         )
 
-        real_attack_remains = bool(
-            remaining_attacks
+        interaction_state_deterministic = (
+            self._interaction_state_is_deterministic(
+                scenario
+            )
+        )
+
+        real_attack_remains = (
+            bool(remaining_attacks)
+            if interaction_state_deterministic
+            else None
         )
 
         claimed_attack_valid = self._attack_exists(
@@ -336,6 +377,9 @@ class DeterministicChecker:
             "no_attack_verified": no_attack_verified,
             "real_attack_remains": real_attack_remains,
             "remaining_attacks": remaining_attacks,
+            "interaction_state_deterministic": (
+                interaction_state_deterministic
+            ),
             "verified_attack": (
                 remaining_attacks[0]
                 if remaining_attacks
@@ -748,20 +792,31 @@ class DeterministicChecker:
         blue_defense: str,
     ) -> List[str]:
         """
-        Determine which known attacks remain after the proposed
-        defense.
+        Determine which known attacks remain after Blue's defense.
 
-        Preferred source:
+        Deterministic evaluation is only authoritative when the hidden
+        metadata explicitly describes how a defense fixes a vulnerability.
 
-            vulnerability metadata containing defense mappings.
+        Supported explicit mappings include:
+            vulnerability.fixed_by
+            vulnerability.valid_defenses
 
-        Fallback:
+        A vulnerability may use either:
+            attack_type
+            type
+            attack
+            id
 
-            if the metadata does not explicitly define defense
-            effects, return the scenario's valid attacks.
+        IMPORTANT:
+        If the metadata does not contain a defense-effect mapping, this
+        function must not invent one. In that situation the deterministic
+        checker cannot establish the post-defense attack state; the semantic
+        Oracle is responsible for that judgment.
 
-        The fallback is intentionally conservative and should
-        normally be replaced by explicit scenario metadata.
+        For compatibility with the existing return type, an unmapped
+        vulnerability is conservatively represented by its attack label.
+        The companion `_interaction_state_is_deterministic` tells callers
+        whether this list is authoritative.
         """
 
         vulnerabilities = getattr(
@@ -777,46 +832,41 @@ class DeterministicChecker:
                 )
             )
 
-        remaining = []
+        remaining: List[str] = []
 
         for vulnerability in vulnerabilities:
-
-            if not isinstance(
-                vulnerability,
-                dict,
-            ):
+            if not isinstance(vulnerability, dict):
                 continue
 
             attack = (
-                vulnerability.get(
-                    "attack_type"
-                )
-                or vulnerability.get(
-                    "attack"
-                )
-                or vulnerability.get(
-                    "id"
-                )
+                vulnerability.get("attack_type")
+                or vulnerability.get("type")
+                or vulnerability.get("attack")
             )
 
+            # "id" is only a vulnerability identifier (e.g. V001), not
+            # an attack label. Never expose it as the remaining attack.
             if not attack:
                 continue
 
-            fixed_by = vulnerability.get(
-                "fixed_by",
-                vulnerability.get(
-                    "valid_defenses",
-                    [],
-                ),
-            )
+            fixed_by = vulnerability.get("fixed_by")
 
-            if isinstance(
-                fixed_by,
-                str,
-            ):
-                fixed_by = [
-                    fixed_by
-                ]
+            if fixed_by is None:
+                fixed_by = vulnerability.get("valid_defenses")
+
+            # No explicit defense mapping: deterministic post-defense
+            # evaluation is incomplete. Keep the known attack available
+            # as a conservative candidate, but do not claim this is proven.
+            if fixed_by is None:
+                remaining.append(str(attack))
+                continue
+
+            if isinstance(fixed_by, str):
+                fixed_by = [fixed_by]
+
+            if not isinstance(fixed_by, (list, tuple, set)):
+                remaining.append(str(attack))
+                continue
 
             defense_matches = any(
                 self._same_label(
@@ -827,11 +877,59 @@ class DeterministicChecker:
             )
 
             if not defense_matches:
-                remaining.append(
-                    str(attack)
-                )
+                remaining.append(str(attack))
 
         return remaining
+
+    def _interaction_state_is_deterministic(
+        self,
+        scenario,
+    ) -> bool:
+        """
+        Return True only when every vulnerability relevant to Turn 3
+        has explicit defense-effect metadata.
+
+        This prevents missing metadata from being silently interpreted
+        as either "defense works" or "defense fails".
+        """
+
+        vulnerabilities = getattr(
+            scenario,
+            "vulnerabilities",
+            [],
+        )
+
+        if not vulnerabilities:
+            # No vulnerability records means there is no deterministic
+            # post-defense mapping to inspect.
+            return False
+
+        saw_vulnerability = False
+
+        for vulnerability in vulnerabilities:
+            if not isinstance(vulnerability, dict):
+                return False
+
+            attack = (
+                vulnerability.get("attack_type")
+                or vulnerability.get("type")
+                or vulnerability.get("attack")
+            )
+
+            if not attack:
+                return False
+
+            fixed_by = vulnerability.get("fixed_by")
+
+            if fixed_by is None:
+                fixed_by = vulnerability.get("valid_defenses")
+
+            if fixed_by is None:
+                return False
+
+            saw_vulnerability = True
+
+        return saw_vulnerability
 
     def _real_attack_remains(
         self,
@@ -924,6 +1022,40 @@ class DeterministicChecker:
     # ==================================================================
     # GENERAL HELPERS
     # ==================================================================
+
+    @staticmethod
+    def _find_known_label(
+        response: str,
+        labels: List[str],
+    ) -> Optional[str]:
+        """
+        Find the longest scenario-provided label explicitly present in
+        the response.
+
+        Longest-first avoids selecting a short label contained inside
+        a more specific label.
+        """
+
+        if not response or not labels:
+            return None
+
+        normalized_response = response.lower()
+
+        candidates = sorted(
+            {
+                str(label).strip()
+                for label in labels
+                if str(label).strip()
+            },
+            key=len,
+            reverse=True,
+        )
+
+        for label in candidates:
+            if label.lower() in normalized_response:
+                return label
+
+        return None
 
     @staticmethod
     def _find_known_attack(

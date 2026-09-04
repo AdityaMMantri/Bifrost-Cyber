@@ -22,7 +22,7 @@ The sampler does not:
 from __future__ import annotations
 
 import random
-from collections import defaultdict
+from collections import defaultdict, deque
 from typing import Any, Dict, Iterable, List, Optional
 
 
@@ -88,6 +88,14 @@ class WeaknessSampler:
                     "failure_rate": 0.0,
                 }
             )
+        )
+
+        # Keep the actual most-recent observations for each category.
+        # The public category_stats structure remains unchanged; this
+        # private history is what makes rolling_window a true rolling
+        # window rather than an approximation based on rescaled counts.
+        self._category_history: Dict[str, deque] = defaultdict(
+            lambda: deque(maxlen=self.rolling_window)
         )
 
         self._scenario_categories = (
@@ -297,14 +305,32 @@ class WeaknessSampler:
             category
         ]
 
-        stats["episodes"] += 1
+        # Record the observation first.  deque(maxlen=rolling_window)
+        # automatically discards the oldest observation when the window
+        # is full.
+        if self.rolling_window > 0:
+            self._category_history[category].append(
+                bool(failed)
+            )
 
-        if failed:
-            stats["failures"] += 1
+            history = self._category_history[category]
+
+            stats["episodes"] = len(history)
+            stats["failures"] = sum(history)
+
+        else:
+            # Preserve the existing meaning of a non-positive window:
+            # no trimming is applied.
+            stats["episodes"] += 1
+
+            if failed:
+                stats["failures"] += 1
 
         stats["failure_rate"] = (
             stats["failures"]
             / stats["episodes"]
+            if stats["episodes"] > 0
+            else 0.0
         )
 
         self._trim_statistics(
@@ -461,52 +487,33 @@ class WeaknessSampler:
         category: str,
     ) -> None:
         """
-        Keep statistics bounded.
+        Keep statistics bounded to the configured rolling window.
 
-        For the compact implementation, only aggregate counts
-        are maintained. When the rolling window is exceeded,
-        counts are proportionally reduced.
+        The actual recent observations are retained privately in
+        _category_history.  Aggregate statistics exposed through
+        category_stats are rebuilt from those observations, so the
+        statistics always represent the most recent observations rather
+        than a proportional approximation of the full history.
         """
 
         stats = self.category_stats[
             category
         ]
 
-        if (
-            self.rolling_window <= 0
-            or stats["episodes"]
-            <= self.rolling_window
-        ):
+        if self.rolling_window <= 0:
             return
 
-        ratio = (
-            self.rolling_window
-            / stats["episodes"]
-        )
+        history = self._category_history[category]
 
-        stats["episodes"] = max(
-            int(
-                round(
-                    stats["episodes"]
-                    * ratio
-                )
-            ),
-            1,
-        )
-
-        stats["failures"] = min(
-            int(
-                round(
-                    stats["failures"]
-                    * ratio
-                )
-            ),
-            stats["episodes"],
-        )
-
+        # deque(maxlen=rolling_window) already removed any observations
+        # older than the configured window.
+        stats["episodes"] = len(history)
+        stats["failures"] = sum(history)
         stats["failure_rate"] = (
             stats["failures"]
             / stats["episodes"]
+            if stats["episodes"] > 0
+            else 0.0
         )
 
     # ==================================================================
@@ -565,6 +572,7 @@ class WeaknessSampler:
         """Clear all historical weakness statistics."""
 
         self.category_stats.clear()
+        self._category_history.clear()
 
     # ==================================================================
     # PERSISTENCE HELPERS
@@ -596,6 +604,7 @@ class WeaknessSampler:
             return
 
         self.category_stats.clear()
+        self._category_history.clear()
 
         for category, values in stats.items():
 
@@ -624,8 +633,12 @@ class WeaknessSampler:
                 max(episodes, 0),
             )
 
+            normalized_category = (
+                self._normalize_category(category)
+            )
+
             self.category_stats[
-                category
+                normalized_category
             ] = {
                 "episodes": episodes,
                 "failures": failures,
@@ -635,3 +648,39 @@ class WeaknessSampler:
                     else 0.0
                 ),
             }
+
+            if self.rolling_window > 0 and episodes > 0:
+                # The persisted report intentionally retains its existing
+                # public format, so it does not contain observation order.
+                # Reconstruct the aggregate window deterministically.
+                history = self._category_history[
+                    normalized_category
+                ]
+                history.extend(
+                    [True] * min(failures, self.rolling_window)
+                )
+                history.extend(
+                    [False]
+                    * min(
+                        max(episodes - failures, 0),
+                        max(
+                            self.rolling_window
+                            - len(history),
+                            0,
+                        ),
+                    )
+                )
+
+                self.category_stats[
+                    normalized_category
+                ]["episodes"] = len(history)
+                self.category_stats[
+                    normalized_category
+                ]["failures"] = sum(history)
+                self.category_stats[
+                    normalized_category
+                ]["failure_rate"] = (
+                    sum(history) / len(history)
+                    if history
+                    else 0.0
+                )

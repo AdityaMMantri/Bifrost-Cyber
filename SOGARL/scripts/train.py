@@ -1,55 +1,66 @@
 """
 train.py
 
-Main SOGARL RL training entry point.
+Main SOGARL training entry point.
 
-Pipeline:
+Flow:
 
     Dataset
        ↓
-    Train / Validation / Test split
-       ↓
-    Scenario objects
+    Train/Validation/Test split
        ↓
     Weakness Sampler
        ↓
     Episode Manager
        ↓
-    Red GRPO
+    Red + Blue GRPO
        ↓
-    Blue GRPO
+    Replay Buffer
        ↓
-    Replay Buffer + Metrics
+    Metrics
        ↓
-    Validation
+    Weakness statistics
        ↓
     Checkpoint
+       ↓
+    Next episode
 """
 
 from __future__ import annotations
 
 import argparse
 import random
+import shutil
 import sys
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Sequence
 
+ROOT = Path(__file__).resolve().parents[1]
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
+
 from configs import config
 
-from src.data.models import Scenario
 from src.data.scenario_loader import ScenarioLoader
 from src.data.metadata_loader import MetadataLoader
 from src.data.path_resolver import PathResolver
 from src.data.code_loader import CodeLoader
+from src.data.models import Scenario
 
 from src.generation.prompt_builder import PromptBuilder
 from src.generation.generator import Generator
 
 from src.oracle.oracle import Oracle
+from src.oracle.semantic_judge import SemanticJudge
+from src.oracle.deterministic_checks import DeterministicChecker
 from src.oracle.interaction_checker import InteractionChecker
 
 from src.rl.reward_manager import RewardManager
 from src.rl.episode_manager import EpisodeManager
+from src.rl.grpo import (
+    create_red_trainer,
+    create_blue_trainer,
+)
 
 from src.sampling.weakness_sampler import WeaknessSampler
 
@@ -100,7 +111,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--no-weakness-sampling",
         action="store_true",
-        help="Disable adaptive weakness sampling.",
+        help="Disable weakness-based scenario sampling.",
     )
 
     return parser.parse_args()
@@ -136,38 +147,41 @@ def build_logger() -> SOGARLLogger:
 # DATASET
 # ============================================================================
 
-def build_scenario_loader(
-    logger: SOGARLLogger,
-) -> ScenarioLoader:
+def get_scenario_paths() -> List[Path]:
+    """
+    Return all scenario directories from the SFT dataset.
+    """
 
-    metadata_loader = MetadataLoader(
-        logger=logger
+    dataset_path = Path(
+        config.DATASET_PATH
     )
 
-    return ScenarioLoader(
-        dataset_path=Path(
-            config.DATASET_PATH
-        ),
-        metadata_loader=metadata_loader,
-        logger=logger,
-        strict=True,
-    )
+    if not dataset_path.is_dir():
 
+        raise FileNotFoundError(
+            "Dataset directory does not exist: "
+            f"{dataset_path}"
+        )
 
-def discover_scenarios(
-    scenario_loader: ScenarioLoader,
-) -> List[Path]:
-
-    scenarios = (
-        scenario_loader
-        .discover_scenarios()
+    scenarios = sorted(
+        [
+            path
+            for path in dataset_path.iterdir()
+            if (
+                path.is_dir()
+                and path.name.startswith(
+                    "scenario_"
+                )
+            )
+        ],
+        key=lambda path: path.name,
     )
 
     if not scenarios:
 
         raise RuntimeError(
-            "No scenario directories found in: "
-            f"{config.DATASET_PATH}"
+            "No scenario directories found in "
+            f"{dataset_path}"
         )
 
     return scenarios
@@ -177,20 +191,32 @@ def load_scenarios(
     scenario_loader: ScenarioLoader,
     scenario_paths: Sequence[Path],
 ) -> List[Scenario]:
+    """
+    Load complete Scenario objects.
 
-    scenarios = []
+    The sampler needs Scenario objects because the category is
+    stored on the Scenario and is required for weakness-aware
+    sampling.
+    """
 
-    for path in scenario_paths:
+    scenarios: List[Scenario] = []
+
+    for scenario_path in scenario_paths:
 
         scenario = (
-            scenario_loader
-            .load_scenario(
-                path.name
+            scenario_loader.load_scenario(
+                scenario_path.name
             )
         )
 
         scenarios.append(
             scenario
+        )
+
+    if not scenarios:
+
+        raise RuntimeError(
+            "No scenarios could be loaded."
         )
 
     return scenarios
@@ -207,6 +233,11 @@ def split_scenarios(
     List[Scenario],
     List[Scenario],
 ]:
+    """
+    Split scenarios into train/validation/test sets.
+
+    The split is deterministic using SPLIT_SEED.
+    """
 
     scenarios = list(
         scenarios
@@ -237,7 +268,7 @@ def split_scenarios(
     train_end = train_count
 
     validation_end = (
-        train_end
+        train_count
         + validation_count
     )
 
@@ -273,57 +304,91 @@ def split_scenarios(
 def build_episode_manager(
     logger: SOGARLLogger,
 ) -> EpisodeManager:
+    """
+    Construct the complete SOGARL dependency graph.
+
+    Red and Blue use separate role-specific LoRA adapters while
+    sharing the underlying base model architecture.
+
+    The SemanticJudge reuses the already-loaded Red generator
+    base model and does not load another base-model copy.
+    """
 
     dataset_path = Path(
         config.DATASET_PATH
     )
 
-    metadata_loader = MetadataLoader(
-        logger=logger
-    )
+    # ------------------------------------------------------------------
+    # Data
+    # ------------------------------------------------------------------
+
+    metadata_loader = MetadataLoader()
 
     scenario_loader = ScenarioLoader(
         dataset_path=dataset_path,
         metadata_loader=metadata_loader,
-        logger=logger,
-        strict=True,
     )
 
-    path_resolver = PathResolver(
-        logger=logger
-    )
+    path_resolver = PathResolver()
 
     code_loader = CodeLoader(
-        logger=logger
+        logger=logger,
     )
 
-    prompt_builder = PromptBuilder(
-        logger=logger
-    )
+    # ------------------------------------------------------------------
+    # Prompting
+    # ------------------------------------------------------------------
+
+    prompt_builder = PromptBuilder()
+
+    # ------------------------------------------------------------------
+    # Generation
+    # ------------------------------------------------------------------
 
     red_generator = Generator.from_config(
-        role="red",
-        logger=logger,
+        "red"
     )
 
     blue_generator = Generator.from_config(
-        role="blue",
+        "blue"
+    )
+
+    # ------------------------------------------------------------------
+    # Oracle
+    #
+    # Ground truth remains Oracle-side.
+    # SemanticJudge is therefore constructed here rather than
+    # inside PromptBuilder or Generator.
+    # ------------------------------------------------------------------
+
+    semantic_judge = SemanticJudge(
+        base_generator=red_generator,
         logger=logger,
     )
 
     oracle = Oracle(
-        logger=logger
+        deterministic_checker=(
+            DeterministicChecker()
+        ),
+        semantic_judge=semantic_judge,
+        logger=logger,
     )
 
     interaction_checker = (
-        InteractionChecker(
-            logger=logger
-        )
+        InteractionChecker()
     )
 
+    # ------------------------------------------------------------------
+    # Rewards
+    # ------------------------------------------------------------------
+
     reward_manager = RewardManager(
-        logger=logger
+        logger=logger,
     )
+
+    # ------------------------------------------------------------------
+    # Replay + metrics
+    # ------------------------------------------------------------------
 
     replay_buffer = ReplayBuffer(
         capacity=getattr(
@@ -338,32 +403,25 @@ def build_episode_manager(
         output_dir=Path(
             config.METRICS_PATH
         ),
+    )
+
+    # ------------------------------------------------------------------
+    # GRPO
+    # ------------------------------------------------------------------
+
+    red_trainer = create_red_trainer(
+        model=red_generator.model,
         logger=logger,
     )
 
-    red_trainer = None
-    blue_trainer = None
+    blue_trainer = create_blue_trainer(
+        model=blue_generator.model,
+        logger=logger,
+    )
 
-    if config.TRAIN_UPDATES_ENABLED:
-
-        from src.rl.grpo import (
-            create_red_trainer,
-            create_blue_trainer,
-        )
-
-        red_trainer = (
-            create_red_trainer(
-                model=red_generator.model,
-                logger=logger,
-            )
-        )
-
-        blue_trainer = (
-            create_blue_trainer(
-                model=blue_generator.model,
-                logger=logger,
-            )
-        )
+    # ------------------------------------------------------------------
+    # Episode manager
+    # ------------------------------------------------------------------
 
     return EpisodeManager(
         scenario_loader=scenario_loader,
@@ -392,6 +450,13 @@ def build_sampler(
     scenarios: Sequence[Scenario],
     logger: SOGARLLogger,
 ) -> WeaknessSampler:
+    """
+    Create the weakness-aware scenario sampler.
+
+    IMPORTANT:
+    The sampler receives Scenario objects rather than Path objects
+    because it needs the scenario category.
+    """
 
     return WeaknessSampler(
         scenarios=scenarios,
@@ -414,72 +479,94 @@ def build_sampler(
 
 
 # ============================================================================
-# CHECKPOINT
+# CHECKPOINT MANAGER
 # ============================================================================
 
 def build_checkpoint_manager(
     logger: SOGARLLogger,
 ) -> CheckpointManager:
 
-    root = Path(
+    checkpoint_root = Path(
         config.CHECKPOINT_PATH
     )
 
-    root.mkdir(
+    checkpoint_root.mkdir(
         parents=True,
         exist_ok=True,
     )
 
     return CheckpointManager(
-        checkpoint_root=root,
+        checkpoint_root=checkpoint_root,
         logger=logger,
     )
 
 
-def save_training_checkpoint(
-    manager: CheckpointManager,
+# ============================================================================
+# CHECKPOINT SAVE
+# ============================================================================
+
+def save_checkpoint(
+    checkpoint_manager: CheckpointManager,
     episode_manager: EpisodeManager,
     sampler: Optional[WeaknessSampler],
     epoch: int,
-    global_episode: int,
+    episode: int,
     best_metric: Optional[float],
     logger: SOGARLLogger,
-) -> Path:
+) -> None:
 
-    if (
+    red_trainer = (
         episode_manager.red_trainer
-        is None
-    ):
+    )
+
+    blue_trainer = (
+        episode_manager.blue_trainer
+    )
+
+    if red_trainer is None:
 
         raise RuntimeError(
             "Red trainer is required for checkpointing."
         )
 
-    if (
-        episode_manager.blue_trainer
-        is None
-    ):
+    if blue_trainer is None:
 
         raise RuntimeError(
             "Blue trainer is required for checkpointing."
         )
 
-    trainer_state = {}
+    trainer_state: Dict[str, Any] = {}
 
     if sampler is not None:
 
         trainer_state[
             "weakness_sampler"
-        ] = (
-            sampler.get_weakness_report()
+        ] = sampler.get_weakness_report()
+
+        # WeaknessSampler owns an independent random.Random
+        # instance. Persist it so resume does not silently change
+        # the future scenario-sampling sequence.
+        sampler_rng = getattr(
+            sampler,
+            "random",
+            None,
         )
+
+        if sampler_rng is not None and hasattr(
+            sampler_rng,
+            "getstate",
+        ):
+
+            trainer_state[
+                "weakness_sampler_rng_state"
+            ] = sampler_rng.getstate()
 
     checkpoint_name = (
         f"epoch_{epoch:03d}"
-        f"_episode_{global_episode:06d}"
+        f"_episode_{episode:06d}"
     )
 
-    checkpoint = manager.save(
+    checkpoint_dir = checkpoint_manager.save(
         checkpoint_name=checkpoint_name,
         red_model=(
             episode_manager
@@ -491,46 +578,60 @@ def save_training_checkpoint(
             .blue_generator
             .model
         ),
-        red_trainer=(
-            episode_manager
-            .red_trainer
-        ),
-        blue_trainer=(
-            episode_manager
-            .blue_trainer
-        ),
+        red_trainer=red_trainer,
+        blue_trainer=blue_trainer,
         red_reference_model=(
-            episode_manager
-            .red_trainer
-            .get_reference_model()
+            red_trainer.get_reference_model()
         ),
         blue_reference_model=(
-            episode_manager
-            .blue_trainer
-            .get_reference_model()
+            blue_trainer.get_reference_model()
         ),
         epoch=epoch,
-        episode=global_episode,
-        global_step=(
-            global_episode
-        ),
+        episode=episode,
+        global_step=episode,
         best_metric=best_metric,
         trainer_state=trainer_state,
     )
 
-    logger.info(
-        f"Checkpoint saved: {checkpoint}"
+    # ReplayBuffer already provides a stable save/load API.
+    # Persist it beside the checkpoint so resume does not lose
+    # historical interactions.
+    replay_buffer = getattr(
+        episode_manager,
+        "replay_buffer",
+        None,
     )
 
-    return checkpoint
+    if replay_buffer is not None:
+
+        replay_save = getattr(
+            replay_buffer,
+            "save",
+            None,
+        )
+
+        if replay_save is not None:
+
+            replay_save(
+                str(
+                    checkpoint_dir
+                    / "replay_buffer.json"
+                )
+            )
+
+    logger.info(
+        "Checkpoint saved | "
+        f"epoch={epoch} | "
+        f"episode={episode}"
+    )
 
 
 # ============================================================================
 # CHECKPOINT RESTORE
 # ============================================================================
 
-def restore_training_checkpoint(
-    manager: CheckpointManager,
+def restore_checkpoint(
+    checkpoint_manager: CheckpointManager,
     episode_manager: EpisodeManager,
     sampler: Optional[WeaknessSampler],
     logger: SOGARLLogger,
@@ -539,16 +640,29 @@ def restore_training_checkpoint(
     int,
     Optional[float],
 ]:
+    """
+    Restore the latest training checkpoint.
+
+    Returns:
+
+        start_epoch
+        global_episode
+        best_metric
+
+    The returned epoch is the checkpointed epoch. The training loop
+    uses global_episode to skip only the episodes already completed
+    in that epoch, allowing correct mid-epoch resume.
+    """
 
     checkpoint = (
-        manager.find_latest()
+        checkpoint_manager.find_latest()
     )
 
     if checkpoint is None:
 
         logger.warning(
-            "No checkpoint found. "
-            "Starting training from scratch."
+            "Resume requested but no checkpoint "
+            "was found. Starting from scratch."
         )
 
         return (
@@ -557,19 +671,31 @@ def restore_training_checkpoint(
             None,
         )
 
-    if (
+    logger.info(
+        f"Restoring checkpoint: {checkpoint}"
+    )
+
+    red_trainer = (
         episode_manager.red_trainer
-        is None
-        or episode_manager.blue_trainer
-        is None
-    ):
+    )
+
+    blue_trainer = (
+        episode_manager.blue_trainer
+    )
+
+    if red_trainer is None:
 
         raise RuntimeError(
-            "Training trainers are required "
-            "when resuming."
+            "Red trainer is required for resume."
         )
 
-    state = manager.load(
+    if blue_trainer is None:
+
+        raise RuntimeError(
+            "Blue trainer is required for resume."
+        )
+
+    state = checkpoint_manager.load(
         checkpoint_path=checkpoint,
         red_model=(
             episode_manager
@@ -581,23 +707,13 @@ def restore_training_checkpoint(
             .blue_generator
             .model
         ),
-        red_trainer=(
-            episode_manager
-            .red_trainer
-        ),
-        blue_trainer=(
-            episode_manager
-            .blue_trainer
-        ),
+        red_trainer=red_trainer,
+        blue_trainer=blue_trainer,
         red_reference_model=(
-            episode_manager
-            .red_trainer
-            .get_reference_model()
+            red_trainer.get_reference_model()
         ),
         blue_reference_model=(
-            episode_manager
-            .blue_trainer
-            .get_reference_model()
+            blue_trainer.get_reference_model()
         ),
         restore_rng=True,
         require_training_state=True,
@@ -614,7 +730,7 @@ def restore_training_checkpoint(
         )
     )
 
-    global_episode = int(
+    episode = int(
         trainer_state.get(
             "episode",
             0,
@@ -625,23 +741,30 @@ def restore_training_checkpoint(
         "best_metric"
     )
 
-    extra_state = trainer_state.get(
+    # --------------------------------------------------------------
+    # Restore weakness sampler history.
+    #
+    # CheckpointManager stores user trainer state under the
+    # "trainer_state" key. The previous implementation looked for
+    # weakness_sampler at the outer level.
+    # --------------------------------------------------------------
+
+    user_trainer_state = trainer_state.get(
         "trainer_state",
-        {}
+        {},
     )
 
-    if (
-        sampler is not None
-        and isinstance(
-            extra_state,
-            dict,
-        )
+    if not isinstance(
+        user_trainer_state,
+        dict,
     ):
 
-        sampler_report = (
-            extra_state.get(
-                "weakness_sampler"
-            )
+        user_trainer_state = {}
+
+    if sampler is not None:
+
+        sampler_report = user_trainer_state.get(
+            "weakness_sampler"
         )
 
         if isinstance(
@@ -653,15 +776,72 @@ def restore_training_checkpoint(
                 sampler_report
             )
 
+        sampler_rng_state = (
+            user_trainer_state.get(
+                "weakness_sampler_rng_state"
+            )
+        )
+
+        sampler_rng = getattr(
+            sampler,
+            "random",
+            None,
+        )
+
+        if (
+            sampler_rng is not None
+            and sampler_rng_state is not None
+            and hasattr(
+                sampler_rng,
+                "setstate",
+            )
+        ):
+
+            sampler_rng.setstate(
+                sampler_rng_state
+            )
+
+    # --------------------------------------------------------------
+    # Restore replay buffer.
+    # --------------------------------------------------------------
+
+    replay_buffer = getattr(
+        episode_manager,
+        "replay_buffer",
+        None,
+    )
+
+    replay_path = (
+        checkpoint
+        / "replay_buffer.json"
+    )
+
+    if (
+        replay_buffer is not None
+        and replay_path.exists()
+    ):
+
+        replay_load = getattr(
+            replay_buffer,
+            "load",
+            None,
+        )
+
+        if replay_load is not None:
+
+            replay_load(
+                str(replay_path)
+            )
+
     logger.info(
         "Checkpoint restored | "
         f"epoch={epoch} | "
-        f"episode={global_episode}"
+        f"episode={episode}"
     )
 
     return (
-        epoch + 1,
-        global_episode,
+        epoch,
+        episode,
         best_metric,
     )
 
@@ -670,53 +850,55 @@ def restore_training_checkpoint(
 # METRICS
 # ============================================================================
 
-def aggregate_metrics(
-    episode_metrics: Sequence[
+def aggregate_episode_metrics(
+    metrics: List[
         Dict[str, Any]
     ],
 ) -> Dict[str, Any]:
 
-    if not episode_metrics:
+    if not metrics:
 
         return {
             "episodes": 0
         }
 
-    keys = set()
+    numeric_keys = set()
 
-    for metrics in episode_metrics:
+    for item in metrics:
 
-        for key, value in metrics.items():
+        for key, value in item.items():
 
             if isinstance(
                 value,
                 (int, float),
             ):
 
-                keys.add(
+                numeric_keys.add(
                     key
                 )
 
-    result = {
+    summary: Dict[
+        str,
+        Any,
+    ] = {
         "episodes": len(
-            episode_metrics
+            metrics
         )
     }
 
     for key in sorted(
-        keys
+        numeric_keys
     ):
 
         values = [
             float(
-                metrics[key]
+                item[key]
             )
-            for metrics
-            in episode_metrics
+            for item in metrics
             if (
-                key in metrics
+                key in item
                 and isinstance(
-                    metrics[key],
+                    item[key],
                     (int, float),
                 )
             )
@@ -724,22 +906,22 @@ def aggregate_metrics(
 
         if values:
 
-            result[key] = (
+            summary[key] = (
                 sum(values)
                 / len(values)
             )
 
-    return result
+    return summary
 
 
-def log_epoch_metrics(
+def log_epoch_summary(
     epoch: int,
     metrics: Dict[str, Any],
     logger: SOGARLLogger,
 ) -> None:
 
     logger.info(
-        f"Epoch {epoch} summary"
+        f"Epoch {epoch} complete"
     )
 
     for key, value in metrics.items():
@@ -761,20 +943,25 @@ def log_epoch_metrics(
 
 
 # ============================================================================
-# FAILURE DETECTION
+# WEAKNESS FAILURE SIGNAL
 # ============================================================================
 
 def episode_failed(
-    result,
+    result: Any,
 ) -> bool:
     """
-    Determine whether the episode represents
-    a Blue failure for weakness sampling.
+    Convert the completed episode result into the failure signal
+    expected by WeaknessSampler.
 
-    Preference order:
-        1. Explicit failure metric
-        2. Explicit success metric
-        3. Mean Blue Oracle reward
+    Explicit failure/success metrics are preferred.
+
+    For the current SOGARL metrics, the interaction reward is the
+    most direct episode-level failure signal because it records the
+    Red-versus-Blue outcome after the Top-K interaction.
+
+    Normalized advantages are deliberately never used as a failure
+    signal because their group-relative construction centers them
+    around zero by design.
     """
 
     metrics = getattr(
@@ -783,10 +970,23 @@ def episode_failed(
         {},
     )
 
+    if not isinstance(
+        metrics,
+        dict,
+    ):
+
+        return False
+
     if "failed" in metrics:
 
         return bool(
             metrics["failed"]
+        )
+
+    if "failure" in metrics:
+
+        return bool(
+            metrics["failure"]
         )
 
     if "success" in metrics:
@@ -795,17 +995,39 @@ def episode_failed(
             metrics["success"]
         )
 
-    reward = metrics.get(
-        "blue_mean_oracle_reward"
+    interaction_reward = metrics.get(
+        "blue_mean_interaction_reward"
     )
 
-    if reward is None:
+    if interaction_reward is not None:
 
-        return False
+        return float(
+            interaction_reward
+        ) < 0.0
 
-    return float(
-        reward
-    ) < 0.5
+    # No direct episode-level failure signal is available.
+    # Do not invent a threshold for the normalized reward.
+    return False
+
+
+# ============================================================================
+# SCENARIO SELECTION
+# ============================================================================
+
+def select_scenario(
+    scenarios: Sequence[Scenario],
+    sampler: Optional[WeaknessSampler],
+    episode_index: int,
+) -> Scenario:
+
+    if sampler is not None:
+
+        return sampler.sample_one()
+
+    return scenarios[
+        episode_index
+        % len(scenarios)
+    ]
 
 
 # ============================================================================
@@ -813,20 +1035,46 @@ def episode_failed(
 # ============================================================================
 
 def run_validation(
-    validation_scenarios: Sequence[Scenario],
     episode_manager: EpisodeManager,
+    validation_scenarios: Sequence[Scenario],
     epoch: int,
     logger: SOGARLLogger,
 ) -> Dict[str, Any]:
+    """
+    Evaluate the current policies on the held-out validation split.
+
+    Validation:
+        - performs no GRPO update
+        - does not update weakness statistics
+        - does not update training category history
+        - does not use validation scenarios for training selection
+
+    The combined validation reward is the mean of the Red and Blue
+    mean Oracle rewards, preserving the two-agent nature of the
+    validation metric.
+    """
 
     if not validation_scenarios:
 
+        logger.warning(
+            "Validation split is empty; "
+            "validation metric cannot be computed."
+        )
+
         return {
-            "validation_episodes": 0,
-            "validation_mean_blue_reward": 0.0,
+            "episodes": 0,
+            "combined_validation_reward": None,
         }
 
-    results = []
+    validation_metrics: List[
+        Dict[str, Any]
+    ] = []
+
+    logger.info(
+        f"Starting validation | "
+        f"epoch={epoch} | "
+        f"scenarios={len(validation_scenarios)}"
+    )
 
     for index, scenario in enumerate(
         validation_scenarios,
@@ -839,44 +1087,114 @@ def run_validation(
                 training=False,
                 episode_id=(
                     f"validation_"
-                    f"{epoch:03d}_"
-                    f"{index:05d}"
+                    f"epoch_{epoch:03d}_"
+                    f"{index:06d}"
                 ),
                 epoch=epoch,
             )
         )
 
-        results.append(
-            result.episode_metrics
+        metrics = getattr(
+            result,
+            "episode_metrics",
+            {},
         )
 
-    summary = aggregate_metrics(
-        results
+        if isinstance(
+            metrics,
+            dict,
+        ) and metrics:
+
+            validation_metrics.append(
+                metrics
+            )
+
+    summary = aggregate_episode_metrics(
+        validation_metrics
     )
 
-    summary[
-        "validation_episodes"
-    ] = len(
-        validation_scenarios
+    red_reward = summary.get(
+        "red_mean_oracle_reward"
     )
 
-    summary[
-        "validation_mean_blue_reward"
-    ] = float(
-        summary.get(
-            "blue_mean_oracle_reward",
-            0.0,
+    blue_reward = summary.get(
+        "blue_mean_oracle_reward"
+    )
+
+    if (
+        isinstance(
+            red_reward,
+            (int, float),
         )
-    )
+        and isinstance(
+            blue_reward,
+            (int, float),
+        )
+    ):
+
+        summary[
+            "combined_validation_reward"
+        ] = (
+            float(red_reward)
+            + float(blue_reward)
+        ) / 2.0
+
+    else:
+
+        summary[
+            "combined_validation_reward"
+        ] = None
 
     logger.info(
-        "Validation complete | "
+        f"Validation complete | "
         f"epoch={epoch} | "
-        f"blue_reward="
-        f"{summary['validation_mean_blue_reward']:.6f}"
+        f"metrics={summary}"
     )
 
     return summary
+
+
+# ============================================================================
+# BEST CHECKPOINT
+# ============================================================================
+
+def save_best_checkpoint(
+    checkpoint_manager: CheckpointManager,
+    source_checkpoint: Path,
+    logger: SOGARLLogger,
+) -> None:
+    """
+    Keep a stable 'best' checkpoint copy.
+
+    The CheckpointManager intentionally refuses to overwrite an existing
+    checkpoint, so the previous best is removed before copying the new
+    best checkpoint directory.
+    """
+
+    best_name = "best"
+
+    if checkpoint_manager.exists(
+        best_name
+    ):
+
+        checkpoint_manager.delete(
+            best_name
+        )
+
+    best_path = (
+        checkpoint_manager.checkpoint_root
+        / best_name
+    )
+
+    shutil.copytree(
+        source_checkpoint,
+        best_path,
+    )
+
+    logger.info(
+        f"Best checkpoint updated: {best_path}"
+    )
+
 
 
 # ============================================================================
@@ -892,6 +1210,10 @@ def train(
     logger: SOGARLLogger,
 ) -> None:
 
+    # ------------------------------------------------------------------
+    # Configuration
+    # ------------------------------------------------------------------
+
     config.validate_config()
 
     config.create_output_directories()
@@ -904,19 +1226,22 @@ def train(
     # Dataset
     # ------------------------------------------------------------------
 
-    scenario_loader = (
-        build_scenario_loader(
-            logger
-        )
+    dataset_path = Path(
+        config.DATASET_PATH
     )
 
-    scenario_paths = discover_scenarios(
-        scenario_loader
+    metadata_loader = MetadataLoader()
+
+    scenario_loader = ScenarioLoader(
+        dataset_path=dataset_path,
+        metadata_loader=metadata_loader,
     )
+
+    scenario_paths = get_scenario_paths()
 
     scenarios = load_scenarios(
-        scenario_loader,
-        scenario_paths,
+        scenario_loader=scenario_loader,
+        scenario_paths=scenario_paths,
     )
 
     (
@@ -967,17 +1292,23 @@ def train(
     if weakness_sampling_enabled:
 
         sampler = build_sampler(
-            train_scenarios,
-            logger,
+            scenarios=train_scenarios,
+            logger=logger,
         )
 
     # ------------------------------------------------------------------
-    # State
+    # Training state
     # ------------------------------------------------------------------
 
     start_epoch = 1
+
     global_episode = 0
+
     best_metric = None
+
+    # ------------------------------------------------------------------
+    # Resume
+    # ------------------------------------------------------------------
 
     if resume:
 
@@ -985,15 +1316,19 @@ def train(
             start_epoch,
             global_episode,
             best_metric,
-        ) = restore_training_checkpoint(
-            manager=checkpoint_manager,
-            episode_manager=episode_manager,
+        ) = restore_checkpoint(
+            checkpoint_manager=(
+                checkpoint_manager
+            ),
+            episode_manager=(
+                episode_manager
+            ),
             sampler=sampler,
             logger=logger,
         )
 
     # ------------------------------------------------------------------
-    # Epochs
+    # Epoch loop
     # ------------------------------------------------------------------
 
     for epoch in range(
@@ -1002,18 +1337,25 @@ def train(
     ):
 
         logger.info(
-            "=" * 72
+            "=" * 70
         )
 
         logger.info(
-            f"Epoch {epoch}/{epochs}"
+            f"Starting epoch "
+            f"{epoch}/{epochs}"
         )
 
         logger.info(
-            "=" * 72
+            "=" * 70
         )
 
-        epoch_metrics = []
+        epoch_metrics: List[
+            Dict[str, Any]
+        ] = []
+
+        # --------------------------------------------------------------
+        # Number of episodes
+        # --------------------------------------------------------------
 
         if max_episodes is None:
 
@@ -1032,31 +1374,71 @@ def train(
         # Training episodes
         # --------------------------------------------------------------
 
+        # On resume, the checkpoint stores the global episode number.
+        # Convert that to the number already completed in this epoch.
+        # For a normal uninterrupted run this is zero.
+        episodes_before_epoch = (
+            (epoch - 1)
+            * episodes_this_epoch
+        )
+
+        if epoch == start_epoch and global_episode > 0:
+
+            resume_completed_in_epoch = max(
+                0,
+                global_episode
+                - episodes_before_epoch,
+            )
+
+        else:
+
+            resume_completed_in_epoch = 0
+
+        resume_completed_in_epoch = min(
+            resume_completed_in_epoch,
+            episodes_this_epoch,
+        )
+
         for episode_index in range(
-            episodes_this_epoch
+            resume_completed_in_epoch,
+            episodes_this_epoch,
         ):
 
             global_episode += 1
 
-            if sampler is not None:
-
-                scenario = (
-                    sampler.sample_one()
-                )
-
-            else:
-
-                scenario = (
-                    train_scenarios[
-                        episode_index
-                        % len(train_scenarios)
-                    ]
-                )
+            scenario = select_scenario(
+                scenarios=train_scenarios,
+                sampler=sampler,
+                episode_index=episode_index,
+            )
 
             logger.info(
                 f"Episode {global_episode} | "
-                f"{scenario.scenario_id}"
+                f"Epoch {epoch} | "
+                f"Scenario {scenario.scenario_id}"
             )
+
+            # ----------------------------------------------------------
+            # Run complete SOGARL episode
+            #
+            # EpisodeManager handles:
+            #
+            #   Red G=8
+            #   Red Oracle
+            #   Red Oracle advantage
+            #   Red GRPO
+            #   Attack_best / confidence gate
+            #   Blue G=8
+            #   Blue Oracle
+            #   Top-K=3
+            #   Turn-3 challenges
+            #   interaction rewards
+            #   Blue fused advantage
+            #   Blue GRPO
+            #
+            # Exactly one Red update and one Blue update are
+            # performed for a training episode.
+            # ----------------------------------------------------------
 
             result = (
                 episode_manager.run_episode(
@@ -1070,8 +1452,14 @@ def train(
                 )
             )
 
-            metrics = (
-                result.episode_metrics
+            # ----------------------------------------------------------
+            # Episode metrics
+            # ----------------------------------------------------------
+
+            metrics = getattr(
+                result,
+                "episode_metrics",
+                {},
             )
 
             if metrics:
@@ -1086,29 +1474,42 @@ def train(
 
             if sampler is not None:
 
+                category = getattr(
+                    scenario,
+                    "category",
+                    None,
+                )
+
+                if category is None:
+
+                    metadata = getattr(
+                        scenario,
+                        "metadata",
+                        None,
+                    )
+
+                    if isinstance(
+                        metadata,
+                        dict,
+                    ):
+
+                        category = metadata.get(
+                            "category"
+                        )
+
+                if category is None:
+
+                    category = "unknown"
+
                 sampler.update(
-                    category=(
-                        getattr(
-                            scenario,
-                            "category",
-                            None,
-                        )
-                        or getattr(
-                            scenario,
-                            "metadata",
-                            {},
-                        ).get(
-                            "category",
-                            "unknown",
-                        )
-                    ),
+                    category=category,
                     failed=episode_failed(
                         result
                     ),
                 )
 
             # ----------------------------------------------------------
-            # Periodic logging
+            # Logging
             # ----------------------------------------------------------
 
             if (
@@ -1119,7 +1520,8 @@ def train(
             ):
 
                 logger.info(
-                    f"Episode metrics: {metrics}"
+                    "Episode metrics: "
+                    f"{metrics}"
                 )
 
             # ----------------------------------------------------------
@@ -1134,27 +1536,33 @@ def train(
                 == 0
             ):
 
-                save_training_checkpoint(
-                    manager=checkpoint_manager,
-                    episode_manager=episode_manager,
+                save_checkpoint(
+                    checkpoint_manager=(
+                        checkpoint_manager
+                    ),
+                    episode_manager=(
+                        episode_manager
+                    ),
                     sampler=sampler,
                     epoch=epoch,
-                    global_episode=global_episode,
+                    episode=global_episode,
                     best_metric=best_metric,
                     logger=logger,
                 )
 
         # --------------------------------------------------------------
-        # Epoch metrics
+        # Epoch summary
         # --------------------------------------------------------------
 
-        epoch_summary = aggregate_metrics(
-            epoch_metrics
+        summary = (
+            aggregate_episode_metrics(
+                epoch_metrics
+            )
         )
 
-        log_epoch_metrics(
+        log_epoch_summary(
             epoch=epoch,
-            metrics=epoch_summary,
+            metrics=summary,
             logger=logger,
         )
 
@@ -1162,44 +1570,83 @@ def train(
         # Validation
         # --------------------------------------------------------------
 
-        validation_summary = (
-            run_validation(
-                validation_scenarios=(
-                    validation_scenarios
-                ),
-                episode_manager=(
-                    episode_manager
-                ),
-                epoch=epoch,
-                logger=logger,
-            )
+        validation_summary = run_validation(
+            episode_manager=episode_manager,
+            validation_scenarios=validation_scenarios,
+            epoch=epoch,
+            logger=logger,
         )
 
-        validation_metric = float(
+        validation_metric = (
             validation_summary.get(
-                "validation_mean_blue_reward",
-                0.0,
+                "combined_validation_reward"
             )
         )
 
         # --------------------------------------------------------------
-        # Best checkpoint metric
+        # Best metric / best checkpoint
         # --------------------------------------------------------------
 
-        improved = (
-            best_metric is None
-            or validation_metric
-            > best_metric
-        )
+        if isinstance(
+            validation_metric,
+            (int, float),
+        ):
 
-        if improved:
-
-            best_metric = validation_metric
-
-            logger.info(
-                "New best validation metric: "
-                f"{best_metric:.6f}"
+            is_best = (
+                best_metric is None
+                or float(validation_metric)
+                > float(best_metric)
             )
+
+            if is_best:
+
+                best_metric = float(
+                    validation_metric
+                )
+
+                if (
+                    checkpoint_enabled
+                    and getattr(
+                        config,
+                        "SAVE_BEST_CHECKPOINT",
+                        True,
+                    )
+                ):
+
+                    # The epoch checkpoint below is the canonical
+                    # checkpoint for this epoch. Save it first, then
+                    # make an exact copy as "best".
+                    if getattr(
+                        config,
+                        "SAVE_EVERY_EPOCH",
+                        True,
+                    ):
+
+                        epoch_checkpoint = (
+                            save_checkpoint(
+                                checkpoint_manager=(
+                                    checkpoint_manager
+                                ),
+                                episode_manager=(
+                                    episode_manager
+                                ),
+                                sampler=sampler,
+                                epoch=epoch,
+                                episode=global_episode,
+                                best_metric=best_metric,
+                                logger=logger,
+                            )
+                        )
+
+                        save_best_checkpoint(
+                            checkpoint_manager=(
+                                checkpoint_manager
+                            ),
+                            source_checkpoint=(
+                                epoch_checkpoint
+                            ),
+                            logger=logger,
+                        )
 
         # --------------------------------------------------------------
         # Save weakness report
@@ -1216,29 +1663,57 @@ def train(
                 is not None
             ):
 
-                episode_manager.metrics_logger \
-                    .save_weakness_report(
+                save_report = getattr(
+                    episode_manager
+                    .metrics_logger,
+                    "save_weakness_report",
+                    None,
+                )
+
+                if save_report is not None:
+
+                    save_report(
                         report
                     )
 
         # --------------------------------------------------------------
         # Epoch checkpoint
+        #
+        # If the best checkpoint was already saved above, do not save
+        # the same epoch checkpoint twice.
         # --------------------------------------------------------------
 
         if (
             checkpoint_enabled
-            and config.SAVE_EVERY_EPOCH
+            and getattr(
+                config,
+                "SAVE_EVERY_EPOCH",
+                True,
+            )
         ):
 
-            save_training_checkpoint(
-                manager=checkpoint_manager,
-                episode_manager=episode_manager,
-                sampler=sampler,
-                epoch=epoch,
-                global_episode=global_episode,
-                best_metric=best_metric,
-                logger=logger,
+            epoch_checkpoint_exists = (
+                checkpoint_manager.exists(
+                    f"epoch_{epoch:03d}"
+                    f"_episode_{global_episode:06d}"
+                )
             )
+
+            if not epoch_checkpoint_exists:
+
+                save_checkpoint(
+                    checkpoint_manager=(
+                        checkpoint_manager
+                    ),
+                    episode_manager=(
+                        episode_manager
+                    ),
+                    sampler=sampler,
+                    epoch=epoch,
+                    episode=global_episode,
+                    best_metric=best_metric,
+                    logger=logger,
+                )
 
     # ------------------------------------------------------------------
     # Flush metrics
@@ -1249,7 +1724,15 @@ def train(
         is not None
     ):
 
-        episode_manager.metrics_logger.flush()
+        flush = getattr(
+            episode_manager.metrics_logger,
+            "flush",
+            None,
+        )
+
+        if flush is not None:
+
+            flush()
 
     logger.info(
         "SOGARL training completed."
@@ -1287,7 +1770,7 @@ def main() -> int:
         if epochs < 1:
 
             raise ValueError(
-                "epochs must be >= 1."
+                "epochs must be at least 1."
             )
 
         if (
@@ -1296,7 +1779,7 @@ def main() -> int:
         ):
 
             raise ValueError(
-                "max_episodes must be >= 1."
+                "max_episodes must be at least 1."
             )
 
         train(

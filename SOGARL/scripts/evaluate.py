@@ -27,16 +27,19 @@ Evaluation never:
     - performs weakness sampling
     - modifies the dataset
 """
-
 from __future__ import annotations
 
 import argparse
 import json
 import random
 import sys
-
 from pathlib import Path
 from typing import Any, Dict, List, Optional
+
+# Resolve the project root before importing project-local modules.
+ROOT = Path(__file__).resolve().parents[1]
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
 
 from configs import config
 
@@ -49,7 +52,9 @@ from src.generation.prompt_builder import PromptBuilder
 from src.generation.generator import Generator
 
 from src.oracle.oracle import Oracle
+from src.oracle.deterministic_checks import DeterministicChecker
 from src.oracle.interaction_checker import InteractionChecker
+from src.oracle.semantic_judge import SemanticJudge
 
 from src.rl.reward_manager import RewardManager
 from src.rl.episode_manager import EpisodeManager
@@ -59,8 +64,6 @@ from src.logging.metrics_logger import MetricsLogger
 
 from src.utils.logger import SOGARLLogger
 from src.utils.seed import set_seed
-
-
 # ============================================================================
 # ARGUMENTS
 # ============================================================================
@@ -505,7 +508,25 @@ def build_episode_manager(
 
     prompt_builder = PromptBuilder()
 
-    oracle = Oracle()
+    deterministic_checker = (
+        DeterministicChecker()
+    )
+
+    semantic_judge = None
+
+    if config.USE_SEMANTIC_ORACLE:
+        semantic_judge = SemanticJudge(
+            base_generator=red_generator,
+            logger=logger,
+        )
+
+    oracle = Oracle(
+        deterministic_checker=(
+            deterministic_checker
+        ),
+        semantic_judge=semantic_judge,
+        logger=logger,
+    )
 
     interaction_checker = (
         InteractionChecker()
@@ -648,6 +669,8 @@ def evaluate_scenarios(
             f"{scenario.scenario_id}"
         )
 
+        # Evaluation is strictly inference-only:
+        # no GRPO updates, no weakness sampling, and no model-weight changes.
         result = (
             episode_manager.run_episode(
                 scenario=scenario,
@@ -987,6 +1010,4 @@ def main() -> int:
 
 if __name__ == "__main__":
 
-    sys.exit(
-        main()
-    )
+    sys.exit(main())

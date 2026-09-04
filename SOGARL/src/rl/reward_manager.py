@@ -65,7 +65,6 @@ class RewardManager:
 
     @staticmethod
     def _history_size() -> int:
-
         return max(
             1,
             int(
@@ -79,7 +78,6 @@ class RewardManager:
 
     @staticmethod
     def _minimum_category_episodes() -> int:
-
         return max(
             1,
             int(
@@ -88,6 +86,52 @@ class RewardManager:
                     "MIN_CATEGORY_EPISODES_FOR_GATE",
                     20,
                 )
+            ),
+        )
+
+    @staticmethod
+    def _advantage_epsilon() -> float:
+        return float(
+            getattr(
+                config,
+                "ORACLE_ADVANTAGE_EPSILON",
+                1e-8,
+            )
+        )
+
+    @staticmethod
+    def _interaction_epsilon() -> float:
+        return float(
+            getattr(
+                config,
+                "INTERACTION_STD_EPSILON",
+                1e-8,
+            )
+        )
+
+    @staticmethod
+    def _alpha() -> float:
+        """
+        Locked SOGARL Oracle contribution.
+
+        Default:
+            alpha = 0.8
+
+        Beta controls the interaction contribution and is
+        scheduled independently.
+        """
+
+        return max(
+            0.0,
+            min(
+                1.0,
+                float(
+                    getattr(
+                        config,
+                        "ALPHA",
+                        0.8,
+                    )
+                ),
             ),
         )
 
@@ -113,7 +157,22 @@ class RewardManager:
 
         mean_reward = rewards.mean()
 
-        advantages = rewards - mean_reward
+        # SOGARL group-relative Oracle advantage:
+        #
+        #     A_i = (R_i - mean(R)) / (std(R) + epsilon)
+        #
+        # The standard deviation is calculated over the current
+        # candidate group only.
+        std_reward = rewards.std(
+            unbiased=False
+        )
+
+        advantages = (
+            rewards - mean_reward
+        ) / (
+            std_reward
+            + self._advantage_epsilon()
+        )
 
         for candidate, advantage in zip(
             candidates,
@@ -137,24 +196,21 @@ class RewardManager:
         if not candidates:
             return candidates
 
-        rewards = torch.tensor(
-            [
-                (
-                    float(candidate.interaction_reward)
-                    if candidate.interaction_reward is not None
-                    else 0.0
-                )
-                for candidate in candidates
-            ],
-            dtype=torch.float32,
-        )
-
+        # Only candidates that actually participated in Turn 3
+        # are allowed to contribute to the interaction group.
+        #
+        # Untested candidates are NOT treated as zero-reward
+        # observations.
         tested = [
             candidate
             for candidate in candidates
             if candidate.interaction_reward is not None
         ]
 
+        # No Turn-3 interaction was performed.
+        #
+        # Therefore every candidate receives zero interaction
+        # advantage. This means "no evidence", not a reward.
         if not tested:
 
             for candidate in candidates:
@@ -162,24 +218,17 @@ class RewardManager:
 
             return candidates
 
-        # Missing interaction reward is treated as zero evidence.
-        #
-        # This is intentional.
-        #
-        # If only one candidate is challenged:
-        #
-        #     interaction reward = +1
-        #
-        # it must still produce a positive training signal.
-        #
-        # Centering only over tested candidates would produce:
-        #
-        #     +1 - +1 = 0
-        #
-        # and completely remove the interaction signal.
-        mean_reward = rewards.mean()
+        tested_rewards = torch.tensor(
+            [
+                float(candidate.interaction_reward)
+                for candidate in tested
+            ],
+            dtype=torch.float32,
+        )
 
-        advantages = rewards - mean_reward
+        # Interaction advantage is normalized ONLY across
+        # candidates actually tested in Turn 3.
+        mean_reward = tested_rewards.mean()
 
         if getattr(
             config,
@@ -187,33 +236,38 @@ class RewardManager:
             True,
         ):
 
-            std = rewards.std(
+            std_reward = tested_rewards.std(
                 unbiased=False
             )
 
-            advantages = (
-                advantages
-                / (
-                    std
-                    + getattr(
-                        config,
-                        "INTERACTION_STD_EPSILON",
-                        1e-8,
-                    )
-                )
+            tested_advantages = (
+                tested_rewards - mean_reward
+            ) / (
+                std_reward
+                + self._interaction_epsilon()
             )
 
-        for candidate, advantage in zip(
-            candidates,
-            advantages,
-        ):
+        else:
 
+            tested_advantages = (
+                tested_rewards - mean_reward
+            )
+
+        # Assign normalized interaction advantages to tested
+        # candidates only.
+        for candidate, advantage in zip(
+            tested,
+            tested_advantages,
+        ):
+            candidate.interaction_advantage = float(
+                advantage.item()
+            )
+
+        # Candidates that were not selected for Top-K / Turn-3
+        # testing receive exactly zero interaction advantage.
+        for candidate in candidates:
             if candidate.interaction_reward is None:
                 candidate.interaction_advantage = 0.0
-            else:
-                candidate.interaction_advantage = float(
-                    advantage.item()
-                )
 
         return candidates
 
@@ -235,6 +289,10 @@ class RewardManager:
                 category
             )
 
+        # Mean Oracle reward for THIS episode.
+        #
+        # This is deliberately calculated over the complete
+        # Blue candidate group.
         mean_reward = sum(
             float(candidate.oracle_reward)
             for candidate in candidates
@@ -312,7 +370,7 @@ class RewardManager:
         Beta is disabled until enough historical category
         episodes exist.
 
-        Then:
+        Then beta increases continuously from 0 to BETA_MAX:
 
             mean < BETA_START_MEAN
                 -> beta = 0
@@ -322,6 +380,9 @@ class RewardManager:
 
             otherwise:
                 linear interpolation
+
+        The current episode is intentionally excluded from
+        category history when beta is calculated.
         """
 
         if not getattr(
@@ -364,6 +425,9 @@ class RewardManager:
             )
         )
 
+        # Locked maximum interaction contribution:
+        #
+        #     beta <= 0.2
         max_beta = float(
             getattr(
                 config,
@@ -411,13 +475,32 @@ class RewardManager:
         if not candidates:
             return candidates
 
+        # --------------------------------------------------------------
+        # 1. Oracle group-relative advantage
+        # --------------------------------------------------------------
+
         self.calculate_oracle_advantages(
             candidates
         )
 
+        # --------------------------------------------------------------
+        # 2. Interaction advantage
+        #
+        # Only tested Top-K candidates participate in the
+        # interaction normalization group.
+        # --------------------------------------------------------------
+
         self.calculate_interaction_advantages(
             candidates
         )
+
+        # --------------------------------------------------------------
+        # 3. Historical category statistics
+        #
+        # IMPORTANT:
+        # These statistics are read BEFORE the current episode is
+        # appended to history.
+        # --------------------------------------------------------------
 
         category_statistics = (
             self.get_category_statistics(
@@ -430,6 +513,10 @@ class RewardManager:
                 "std_reward": 0.0,
             }
         )
+
+        # --------------------------------------------------------------
+        # 4. Adaptive beta
+        # --------------------------------------------------------------
 
         beta = self.calculate_beta(
             mean_oracle_reward=(
@@ -444,16 +531,17 @@ class RewardManager:
             ),
         )
 
-        alpha = min(
-            1.0,
-            float(
-                getattr(
-                    config,
-                    "ALPHA_MAX",
-                    1.0,
-                )
-            ),
-        )
+        # --------------------------------------------------------------
+        # 5. Locked alpha
+        #
+        #     A_final = alpha * A_oracle
+        #              + beta * A_interaction
+        #
+        # Default alpha = 0.8.
+        # Maximum beta = 0.2.
+        # --------------------------------------------------------------
+
+        alpha = self._alpha()
 
         for candidate in candidates:
 
@@ -476,6 +564,10 @@ class RewardManager:
                 +
                 beta * interaction_advantage
             )
+
+            # ----------------------------------------------------------
+            # Store reward information for replay / metrics / debugging.
+            # ----------------------------------------------------------
 
             candidate.metadata[
                 "reward_alpha"
@@ -509,12 +601,17 @@ class RewardManager:
         category: Optional[str] = None,
     ) -> List[ScoredCandidate]:
 
-        # Red Turn 1 is trained purely from Oracle quality.
+        # Red Turn 1 is trained ONLY from Oracle quality.
+        #
+        # Turn-3 interaction rewards are NOT used for a second
+        # Red GRPO update in SOGARL V1.
+
         self.calculate_oracle_advantages(
             candidates
         )
 
         for candidate in candidates:
+
             candidate.final_advantage = (
                 candidate.oracle_advantage
                 if candidate.oracle_advantage

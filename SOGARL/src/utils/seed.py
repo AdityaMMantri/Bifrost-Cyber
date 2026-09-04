@@ -20,18 +20,13 @@ This module does NOT:
 """
 
 from __future__ import annotations
-
 import os
 import random
-
 import numpy as np
 import torch
 
 
-def set_seed(
-    seed: int = 42,
-    deterministic: bool = False,
-) -> None:
+def set_seed(seed: int = 42,deterministic: bool = False) -> None:
     """
     Set the global random seed for the SOGARL experiment.
 
@@ -50,37 +45,23 @@ def set_seed(
     """
 
     if not isinstance(seed, int):
-        raise TypeError(
-            "seed must be an integer."
-        )
-
+        raise TypeError("seed must be an integer.")
     if seed < 0:
-        raise ValueError(
-            "seed must be non-negative."
-        )
-
+        raise ValueError("seed must be non-negative.")
     # Python
     random.seed(seed)
-
     # NumPy
     np.random.seed(seed)
-
     # PyTorch CPU
     torch.manual_seed(seed)
-
     # PyTorch CUDA
     if torch.cuda.is_available():
-
         torch.cuda.manual_seed(seed)
         torch.cuda.manual_seed_all(seed)
-
     # Python hash randomization
     os.environ["PYTHONHASHSEED"] = str(seed)
-
     if deterministic:
-
         configure_deterministic_mode()
-
 
 def configure_deterministic_mode() -> None:
     """
@@ -89,10 +70,8 @@ def configure_deterministic_mode() -> None:
     This is mainly useful for debugging and controlled
     experiments rather than maximum training performance.
     """
-
     torch.backends.cudnn.deterministic = True
     torch.backends.cudnn.benchmark = False
-
     try:
         torch.use_deterministic_algorithms(
             True
@@ -107,17 +86,12 @@ def configure_performance_mode() -> None:
 
     This is the preferred mode for the main Kaggle training run.
     """
-
     torch.backends.cudnn.deterministic = False
     torch.backends.cudnn.benchmark = True
-
     try:
-        torch.use_deterministic_algorithms(
-            False
-        )
+        torch.use_deterministic_algorithms(False)
     except RuntimeError:
         pass
-
 
 def get_rng_state() -> dict:
     """
@@ -129,7 +103,6 @@ def get_rng_state() -> dict:
     CheckpointManager already performs this automatically
     when saving checkpoints.
     """
-
     state = {
         "python": random.getstate(),
         "numpy": np.random.get_state(),
@@ -137,61 +110,29 @@ def get_rng_state() -> dict:
     }
 
     if torch.cuda.is_available():
-
-        state["cuda"] = (
-            torch.cuda.get_rng_state_all()
-        )
-
+        state["cuda"] = (torch.cuda.get_rng_state_all())
     return state
 
-
-def restore_rng_state(
-    state: dict,
-) -> None:
+def restore_rng_state(state: dict) -> None:
     """
     Restore previously captured RNG states.
     """
 
     if not isinstance(state, dict):
-        raise TypeError(
-            "state must be a dictionary."
-        )
-
+        raise TypeError("state must be a dictionary.")
     if "python" in state:
-
-        random.setstate(
-            state["python"]
-        )
-
+        random.setstate(state["python"])
     if "numpy" in state:
-
-        np.random.set_state(
-            state["numpy"]
-        )
-
+        np.random.set_state(state["numpy"])
     if "torch" in state:
+        torch.set_rng_state(state["torch"])
+    if ("cuda" in state and torch.cuda.is_available()):
+        torch.cuda.set_rng_state_all(state["cuda"])
 
-        torch.set_rng_state(
-            state["torch"]
-        )
-
-    if (
-        "cuda" in state
-        and torch.cuda.is_available()
-    ):
-
-        torch.cuda.set_rng_state_all(
-            state["cuda"]
-        )
-
-
-def get_seed_info(
-    seed: int,
-) -> dict:
+def get_seed_info(seed: int) -> dict:
     """
     Return basic seed information for experiment logging.
     """
-
     return {
         "seed": seed,
         "cuda_available": torch.cuda.is_available(),
@@ -199,5 +140,5 @@ def get_seed_info(
             torch.cuda.device_count()
             if torch.cuda.is_available()
             else 0
-        ),
+        )
     }

@@ -33,31 +33,24 @@ Training logic belongs inside src/.
 from pathlib import Path
 import os
 
-
-# ============================================================================
-# PROJECT PATHS
-# ============================================================================
-
 SOGARL_ROOT = Path(__file__).resolve().parents[1]
-
 CAPSTONE_ROOT = SOGARL_ROOT.parent
 
-SFT_ROOT = CAPSTONE_ROOT / "SFT"
+SOGARL_RUNTIME = os.getenv("SOGARL_RUNTIME", "auto").strip().lower()
+if SOGARL_RUNTIME not in {"auto", "kaggle", "local"}:
+    raise ValueError("SOGARL_RUNTIME must be one of: auto, kaggle, local.")
+if SOGARL_RUNTIME == "auto":
+    SOGARL_RUNTIME = "kaggle" if Path("/kaggle").exists() else "local"
+
+# Kept with its original name. Override for any SFT location.
+SFT_ROOT = Path(os.getenv("SOGARL_SFT_ROOT", str(CAPSTONE_ROOT / "SFT"))).expanduser()
 
 
 # ============================================================================
 # DATASET
 # ============================================================================
 
-DATASET_PATH = Path(
-    os.getenv(
-        "SOGARL_DATASET_PATH",
-        str(
-            SFT_ROOT / "SFT_Dataset"
-        ),
-    )
-)
-
+DATASET_PATH = Path(os.getenv("SOGARL_DATASET_PATH",str(SFT_ROOT / "SFT_Dataset")))
 
 # ============================================================================
 # SAFE SCENARIO CONTEXT
@@ -91,23 +84,14 @@ SAFE_SCENARIO_SECTIONS = {
     "Normal Flow",
     "Trust Boundary",
     "Security Model",
-    "Canonical Security Boundary",
-}
+    "Canonical Security Boundary"}
 
 
 # ============================================================================
 # SFT LoRA ROOT
 # ============================================================================
 
-LORA_ROOT = Path(
-    os.getenv(
-        "SOGARL_LORA_PATH",
-        str(
-            SFT_ROOT / "LoRa"
-        ),
-    )
-)
-
+LORA_ROOT = Path(os.getenv("SOGARL_LORA_PATH",str(SFT_ROOT / "LoRa")))
 
 # ============================================================================
 # RED LoRA ADAPTER
@@ -125,19 +109,13 @@ SFT/
                     └── lora_adapter/
 """
 
-RED_ADAPTER_PATH = Path(
-    os.getenv(
-        "SOGARL_RED_ADAPTER",
-        str(
+RED_ADAPTER_PATH = Path(os.getenv("SOGARL_RED_ADAPTER",str(
             LORA_ROOT
             / "Red_lora"
             / "Llama"
             / "results"
             / "outputs"
-            / "lora_adapter"
-        ),
-    )
-)
+            / "lora_adapter")))
 
 
 # ============================================================================
@@ -156,19 +134,13 @@ SFT/
                     └── lora_adapter/
 """
 
-BLUE_ADAPTER_PATH = Path(
-    os.getenv(
-        "SOGARL_BLUE_ADAPTER",
-        str(
+BLUE_ADAPTER_PATH = Path(os.getenv("SOGARL_BLUE_ADAPTER",str(
             LORA_ROOT
             / "Blue_lora"
             / "Llama"
             / "results"
             / "outputs"
-            / "lora_adapter"
-        ),
-    )
-)
+            / "lora_adapter")))
 
 
 # ============================================================================
@@ -200,20 +172,15 @@ input dataset contains the LoRA adapters, while the base model is
 downloaded from Hugging Face.
 """
 
-RED_MERGED_MODEL_PATH = Path(
-    os.getenv(
-        "SOGARL_RED_MERGED_MODEL",
-        r"D:\Capstone\SFT\LoRa\Red_lora\Llama\results\outputs\merged_model",
-    )
-)
+RED_MERGED_MODEL_PATH = Path(os.getenv(
+    "SOGARL_RED_MERGED_MODEL",
+    str(LORA_ROOT / "Red_lora" / "Llama" / "results" / "outputs" / "merged_model"),
+)).expanduser()
 
-BLUE_MERGED_MODEL_PATH = Path(
-    os.getenv(
-        "SOGARL_BLUE_MERGED_MODEL",
-        r"D:\Capstone\SFT\LoRa\Blue_lora\Llama\results\outputs\merged_model",
-    )
-)
-
+BLUE_MERGED_MODEL_PATH = Path(os.getenv(
+    "SOGARL_BLUE_MERGED_MODEL",
+    str(LORA_ROOT / "Blue_lora" / "Llama" / "results" / "outputs" / "merged_model"),
+)).expanduser()
 
 # ============================================================================
 # BASE MODEL
@@ -235,11 +202,20 @@ The local merged model paths above are optional and are not required
 for Kaggle.
 """
 
-BASE_MODEL_NAME = os.getenv(
-    "SOGARL_BASE_MODEL",
-    "unsloth/Meta-Llama-3.1-8B-Instruct",
+# May be a Hugging Face repo ID OR a local/Kaggle model directory.
+# Priority: explicit local path, then existing override, then HF default.
+_BASE_MODEL_PATH = os.getenv("SOGARL_BASE_MODEL_PATH", "").strip()
+_BASE_MODEL_OVERRIDE = os.getenv("SOGARL_BASE_MODEL", "").strip()
+BASE_MODEL_NAME = (
+    _BASE_MODEL_PATH
+    if _BASE_MODEL_PATH
+    else (_BASE_MODEL_OVERRIDE or "unsloth/Meta-Llama-3.1-8B-Instruct")
 )
 
+BASE_MODEL_SOURCE = os.getenv("SOGARL_BASE_MODEL_SOURCE", "auto").strip().lower()
+if BASE_MODEL_SOURCE not in {"auto", "huggingface", "local"}:
+    raise ValueError(
+        "SOGARL_BASE_MODEL_SOURCE must be one of: auto, huggingface, local.")
 
 # ============================================================================
 # ORACLE MODEL
@@ -261,13 +237,15 @@ through the environment.
 The Oracle does NOT use the Red/Blue LoRA adapters.
 """
 
-ORACLE_MODEL_NAME = os.getenv(
-    "SOGARL_ORACLE_MODEL",
-    BASE_MODEL_NAME,
-)
-
+ORACLE_MODEL_NAME = os.getenv("SOGARL_ORACLE_MODEL", BASE_MODEL_NAME)
 ORACLE_USE_LORA = False
-
+ORACLE_MODEL_SOURCE = os.getenv(
+    "SOGARL_ORACLE_MODEL_SOURCE", "auto"
+).strip().lower()
+if ORACLE_MODEL_SOURCE not in {"auto", "huggingface", "local"}:
+    raise ValueError(
+        "SOGARL_ORACLE_MODEL_SOURCE must be one of: auto, huggingface, local."
+    )
 
 # ============================================================================
 # OUTPUT PATHS
@@ -292,14 +270,15 @@ Kaggle:
     /kaggle/working/SOGARL/outputs
 """
 
-OUTPUTS_PATH = Path(
-    os.getenv(
-        "SOGARL_OUTPUT_DIR",
-        str(
-            SOGARL_ROOT / "outputs"
-        ),
-    )
+_DEFAULT_OUTPUT_ROOT = (
+    Path("/kaggle/working/SOGARL/outputs")
+    if SOGARL_RUNTIME == "kaggle"
+    else SOGARL_ROOT / "outputs"
 )
+
+OUTPUTS_PATH = Path(
+    os.getenv("SOGARL_OUTPUT_DIR", str(_DEFAULT_OUTPUT_ROOT))
+).expanduser()
 
 CHECKPOINT_PATH = (
     OUTPUTS_PATH / "checkpoints"
@@ -459,7 +438,7 @@ Blue defense candidate that was actually challenged.
 # GRPO ROLLOUTS
 # ============================================================================
 
-NUM_ROLLOUTS = 8
+NUM_ROLLOUTS = 5
 
 TOP_K = 3
 
@@ -478,7 +457,7 @@ TOP_P = 0.95
 
 DO_SAMPLE = True
 
-MAX_INPUT_TOKENS = 6148
+MAX_INPUT_TOKENS = 1024
 
 MAX_NEW_TOKENS = 512
 
@@ -490,20 +469,14 @@ GENERATION_BATCH_SIZE = 1
 # ============================================================================
 
 LEARNING_RATE_RED = 1e-5
-
 LEARNING_RATE_BLUE = 1e-5
-
 WEIGHT_DECAY = 0.01
-
 GRPO_CLIP_EPSILON = 0.2
-
 KL_COEFFICIENT = 0.02
-
 ADVANTAGE_EPSILON = 1e-8
-
 GRADIENT_ACCUMULATION_STEPS = 1
-
 MAX_GRAD_NORM = 1.0
+USE_MERGED_MODEL = False
 
 
 # ============================================================================
@@ -973,6 +946,12 @@ LOG_EVERY_EPISODES = 1
 
 DETERMINISTIC_MODE = False
 
+# Runtime values consumed directly by RewardManager.
+ALPHA = 0.8
+ORACLE_ADVANTAGE_EPSILON = 1e-8
+CATEGORY_REWARD_HISTORY_SIZE = 100
+REPLAY_BUFFER_CAPACITY = 5000
+
 
 # ============================================================================
 # CONFIG VALIDATION
@@ -1166,6 +1145,42 @@ def validate_config():
         )
 
     # ------------------------------------------------------------------------
+    # Runtime / paths
+    # ------------------------------------------------------------------------
+
+    if BASE_MODEL_SOURCE == "local" or Path(BASE_MODEL_NAME).is_absolute():
+        base_path = Path(BASE_MODEL_NAME).expanduser()
+        if not base_path.is_dir():
+            raise FileNotFoundError(
+                f"Local BASE_MODEL_NAME does not exist or is not a directory:\n{base_path}"
+            )
+
+    if ORACLE_MODEL_SOURCE == "local" or Path(ORACLE_MODEL_NAME).is_absolute():
+        oracle_path = Path(ORACLE_MODEL_NAME).expanduser()
+        if not oracle_path.is_dir():
+            raise FileNotFoundError(
+                f"Local ORACLE_MODEL_NAME does not exist or is not a directory:\n{oracle_path}"
+            )
+
+    if CONFIDENCE_STD_MULTIPLIER < 0:
+        raise ValueError("CONFIDENCE_STD_MULTIPLIER cannot be negative.")
+
+    if MIN_CATEGORY_EPISODES_FOR_GATE < 1:
+        raise ValueError("MIN_CATEGORY_EPISODES_FOR_GATE must be positive.")
+
+    if GRADIENT_ACCUMULATION_STEPS < 1:
+        raise ValueError("GRADIENT_ACCUMULATION_STEPS must be positive.")
+
+    if GENERATION_BATCH_SIZE < 1:
+        raise ValueError("GENERATION_BATCH_SIZE must be positive.")
+
+    if USE_BF16 and USE_FP16:
+        raise ValueError("USE_BF16 and USE_FP16 cannot both be True.")
+
+    if DEVICE not in {"cuda", "cpu", "auto"}:
+        raise ValueError("DEVICE must be one of: cuda, cpu, auto.")
+
+    # ------------------------------------------------------------------------
     # Interaction
     # ------------------------------------------------------------------------
 
@@ -1175,6 +1190,24 @@ def validate_config():
             "TOP_K cannot exceed NUM_ROLLOUTS."
         )
 
+
+# ============================================================================
+# DEAD / LEGACY SETTINGS (KEPT; NAMES MUST NOT BE REMOVED)
+# ============================================================================
+# The audited codebase currently does not consume these settings at runtime:
+#
+# ORACLE_USE_LORA, MIN_SCENARIOS, SHUFFLE_SCENARIOS,
+# WEAKNESS_USE_FAILURE_RATE, VALIDATION_UPDATES_ENABLED, TEST_UPDATES_ENABLED,
+# TEST_GENERATE_INTERACTION, TEST_SAVE_RESPONSES, TEST_SAVE_ORACLE_SCORES,
+# BEST_CHECKPOINT_METRIC, SAVE_OPTIMIZER_STATE, SAVE_TRAINER_STATE,
+# USE_KV_CACHE_DURING_TRAINING, USE_8BIT_OPTIMIZER, MAX_MEMORY_GB,
+# SAVE_EPISODE_JSONL, SAVE_TRAINING_METRICS, SAVE_CATEGORY_METRICS,
+# PRINT_EPISODE_SUMMARY, DETERMINISTIC_MODE.
+#
+# They are retained for compatibility and documentation; changing them does
+# not currently change the corresponding runtime behavior.
+#
+# ============================================================================
 
 # ============================================================================
 # OUTPUT DIRECTORY CREATION
