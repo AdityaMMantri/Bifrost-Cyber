@@ -131,7 +131,8 @@ class InteractionChecker:
     CASE 2
     ----------------------------------------------------------------------
 
-    Red claims a fabricated/invalid attack and no real attack remains.
+    Red claims an attack, but the claimed attack does not remain
+    after the Blue defense and no real attack remains.
 
         Red  = -1
         Blue = +1
@@ -219,7 +220,10 @@ class InteractionChecker:
 
         claim_type = self._normalize_claim_type(
             finding.get(
-                "red_claim_type"
+                "red_claim_type",
+                finding.get(
+                    "claim_type"
+                ),
             )
         )
 
@@ -231,41 +235,91 @@ class InteractionChecker:
             "verified_attack"
         )
 
-        remaining_attacks = list(
-            finding.get(
-                "remaining_attacks",
-                [],
-            )
-            or []
+        remaining_attacks_value = finding.get(
+            "remaining_attacks",
+            [],
         )
 
-        claimed_attack_valid = bool(
-            finding.get(
+        if remaining_attacks_value is None:
+
+            remaining_attacks = []
+
+        elif isinstance(
+            remaining_attacks_value,
+            list,
+        ):
+
+            if not all(
+                isinstance(
+                    attack,
+                    str,
+                )
+                for attack
+                in remaining_attacks_value
+            ):
+
+                raise TypeError(
+                    "'remaining_attacks' must contain "
+                    "only strings."
+                )
+
+            remaining_attacks = list(
+                remaining_attacks_value
+            )
+
+        else:
+
+            raise TypeError(
+                "'remaining_attacks' must be a list of strings."
+            )
+
+        claimed_attack_valid = (
+            self._get_bool_field(
+                finding,
                 "claimed_attack_valid",
-                False,
+                default=False,
             )
         )
 
-        claimed_attack_remains = bool(
-            finding.get(
+        claimed_attack_remains = (
+            self._get_bool_field(
+                finding,
                 "claimed_attack_remains",
-                False,
+                default=False,
             )
         )
 
-        real_attack_remains = bool(
-            finding.get(
-                "real_attack_remains",
-                bool(remaining_attacks),
-            )
-        )
+        if "real_attack_remains" in finding:
 
-        no_attack_verified = bool(
-            finding.get(
-                "no_attack_verified",
-                not real_attack_remains,
+            real_attack_remains = (
+                self._get_bool_field(
+                    finding,
+                    "real_attack_remains",
+                    default=False,
+                )
             )
-        )
+
+        else:
+
+            real_attack_remains = bool(
+                remaining_attacks
+            )
+
+        if "no_attack_verified" in finding:
+
+            no_attack_verified = (
+                self._get_bool_field(
+                    finding,
+                    "no_attack_verified",
+                    default=False,
+                )
+            )
+
+        else:
+
+            no_attack_verified = (
+                not real_attack_remains
+            )
 
         # ====================================================================
         # CASE 1
@@ -275,14 +329,18 @@ class InteractionChecker:
             claim_type == "attack"
             and claimed_attack_valid
             and claimed_attack_remains
+            and real_attack_remains
         ):
+
             outcome = self._case_1(
                 claimed_attack=claimed_attack,
                 verified_attack=verified_attack,
                 remaining_attacks=remaining_attacks,
             )
 
-            self._log_outcome(outcome)
+            self._log_outcome(
+                outcome
+            )
 
             return outcome
 
@@ -292,16 +350,19 @@ class InteractionChecker:
 
         if (
             claim_type == "attack"
-            and not claimed_attack_valid
+            and not claimed_attack_remains
             and not real_attack_remains
         ):
+
             outcome = self._case_2(
                 claimed_attack=claimed_attack,
                 verified_attack=verified_attack,
                 remaining_attacks=remaining_attacks,
             )
 
-            self._log_outcome(outcome)
+            self._log_outcome(
+                outcome
+            )
 
             return outcome
 
@@ -314,13 +375,16 @@ class InteractionChecker:
             and not claimed_attack_remains
             and real_attack_remains
         ):
+
             outcome = self._case_3(
                 claimed_attack=claimed_attack,
                 verified_attack=verified_attack,
                 remaining_attacks=remaining_attacks,
             )
 
-            self._log_outcome(outcome)
+            self._log_outcome(
+                outcome
+            )
 
             return outcome
 
@@ -333,12 +397,15 @@ class InteractionChecker:
             and no_attack_verified
             and not real_attack_remains
         ):
+
             outcome = self._case_4(
                 verified_attack=verified_attack,
                 remaining_attacks=remaining_attacks,
             )
 
-            self._log_outcome(outcome)
+            self._log_outcome(
+                outcome
+            )
 
             return outcome
 
@@ -350,12 +417,15 @@ class InteractionChecker:
             claim_type == "no_attack"
             and real_attack_remains
         ):
+
             outcome = self._case_5(
                 verified_attack=verified_attack,
                 remaining_attacks=remaining_attacks,
             )
 
-            self._log_outcome(outcome)
+            self._log_outcome(
+                outcome
+            )
 
             return outcome
 
@@ -397,7 +467,9 @@ class InteractionChecker:
                 config.BLUE_REWARD_VALID_ATTACK_REMAINS
             ),
             red_claim_type="attack",
-            ground_truth_state="valid_attack_remains",
+            ground_truth_state=(
+                "valid_attack_remains"
+            ),
             claimed_attack=claimed_attack,
             verified_attack=verified_attack,
             remaining_attacks=remaining_attacks,
@@ -425,11 +497,17 @@ class InteractionChecker:
         """
         Case 2:
 
-        Red claims an invalid/fabricated attack.
-        No real attack remains.
+        Red claims an attack, but the claimed attack does not remain
+        after the Blue defense and no real attack remains.
 
             Red  = -1
             Blue = +1
+
+        This includes both:
+
+            - a fabricated/invalid attack when nothing real remains
+            - a previously valid attack that the Blue defense
+              successfully fixed
         """
 
         return InteractionOutcome(
@@ -441,16 +519,21 @@ class InteractionChecker:
                 config.BLUE_REWARD_NO_ATTACK_REMAINS
             ),
             red_claim_type="attack",
-            ground_truth_state="no_attack_remains",
+            ground_truth_state=(
+                "no_attack_remains"
+            ),
             claimed_attack=claimed_attack,
             verified_attack=verified_attack,
             remaining_attacks=remaining_attacks,
             explanation=(
-                "Red claimed an invalid attack while the "
-                "Blue defense genuinely closes the vulnerability."
+                "Red claimed an attack that does not remain "
+                "after the Blue defense, and no real "
+                "vulnerability remains."
             ),
             metadata={
-                "outcome": "fabricated_attack",
+                "outcome": (
+                    "claimed_attack_not_remaining"
+                ),
                 "red_correct": False,
                 "blue_defense_success": True,
             },
@@ -491,7 +574,9 @@ class InteractionChecker:
                 config.BLUE_REWARD_VALID_ATTACK_REMAINS
             ),
             red_claim_type="attack",
-            ground_truth_state="different_attack_remains",
+            ground_truth_state=(
+                "different_attack_remains"
+            ),
             claimed_attack=claimed_attack,
             verified_attack=verified_attack,
             remaining_attacks=remaining_attacks,
@@ -501,7 +586,9 @@ class InteractionChecker:
                 "The Blue defense is objectively incomplete."
             ),
             metadata={
-                "outcome": "wrong_attack_different_attack_remains",
+                "outcome": (
+                    "wrong_attack_different_attack_remains"
+                ),
                 "red_partial_detection": True,
                 "red_exact_detection": False,
                 "blue_defense_failed": True,
@@ -535,7 +622,9 @@ class InteractionChecker:
                 config.BLUE_REWARD_NO_ATTACK_REMAINS
             ),
             red_claim_type="no_attack",
-            ground_truth_state="no_attack_remains",
+            ground_truth_state=(
+                "no_attack_remains"
+            ),
             claimed_attack=None,
             verified_attack=verified_attack,
             remaining_attacks=remaining_attacks,
@@ -578,7 +667,9 @@ class InteractionChecker:
                 config.BLUE_REWARD_VALID_ATTACK_REMAINS
             ),
             red_claim_type="no_attack",
-            ground_truth_state="real_attack_missed",
+            ground_truth_state=(
+                "real_attack_missed"
+            ),
             claimed_attack=None,
             verified_attack=verified_attack,
             remaining_attacks=remaining_attacks,
@@ -587,7 +678,9 @@ class InteractionChecker:
                 "remains while a real vulnerability remains."
             ),
             metadata={
-                "outcome": "missed_remaining_vulnerability",
+                "outcome": (
+                    "missed_remaining_vulnerability"
+                ),
                 "red_detection_failed": True,
                 "blue_defense_failed": True,
             },
@@ -615,6 +708,7 @@ class InteractionChecker:
             finding,
             dict,
         ):
+
             raise TypeError(
                 "Interaction finding must be a dictionary."
             )
@@ -623,12 +717,101 @@ class InteractionChecker:
             "red_claim_type" not in finding
             and "claim_type" not in finding
         ):
+
             raise ValueError(
                 "Interaction finding must contain "
                 "'red_claim_type'."
             )
 
+        required_fields = {
+            "claimed_attack_valid",
+            "claimed_attack_remains",
+            "no_attack_verified",
+            "real_attack_remains",
+            "remaining_attacks",
+        }
+
+        missing = (
+            required_fields
+            - set(
+                finding.keys()
+            )
+        )
+
+        if missing:
+
+            raise ValueError(
+                "Interaction finding is missing required fields: "
+                f"{sorted(missing)}"
+            )
+
+        # If both aliases are supplied, they must agree.
+        if (
+            "red_claim_type" in finding
+            and "claim_type" in finding
+        ):
+
+            red_claim_type = (
+                InteractionChecker
+                ._normalize_claim_type(
+                    finding.get(
+                        "red_claim_type"
+                    )
+                )
+            )
+
+            claim_type = (
+                InteractionChecker
+                ._normalize_claim_type(
+                    finding.get(
+                        "claim_type"
+                    )
+                )
+            )
+
+            if red_claim_type != claim_type:
+
+                raise ValueError(
+                    "'red_claim_type' and 'claim_type' "
+                    "describe different claim types."
+                )
+
         return finding
+
+    # ========================================================================
+    # STRICT BOOLEAN VALIDATION
+    # ========================================================================
+
+    @staticmethod
+    def _get_bool_field(
+        finding: Dict[str, Any],
+        field_name: str,
+        default: bool,
+    ) -> bool:
+        """
+        Read a factual boolean without coercing arbitrary values.
+
+        In particular, bool("false") is True in Python, so string
+        representations of booleans must not silently alter the
+        interaction classification.
+        """
+
+        value = finding.get(
+            field_name,
+            default,
+        )
+
+        if not isinstance(
+            value,
+            bool,
+        ):
+
+            raise TypeError(
+                f"'{field_name}' must be a boolean, "
+                f"got {type(value).__name__}."
+            )
+
+        return value
 
     # ========================================================================
     # CLAIM TYPE NORMALIZATION
@@ -658,6 +841,7 @@ class InteractionChecker:
         """
 
         if claim_type is None:
+
             raise ValueError(
                 "red_claim_type cannot be None."
             )
@@ -674,6 +858,7 @@ class InteractionChecker:
             "vulnerability_exists",
             "vulnerability exists",
         }:
+
             return "attack"
 
         if value in {
@@ -685,6 +870,7 @@ class InteractionChecker:
             "no vulnerability remains",
             "no attack remains",
         }:
+
             return "no_attack"
 
         raise ValueError(
@@ -707,6 +893,7 @@ class InteractionChecker:
         """
 
         if self.logger is None:
+
             return
 
         self.logger.info(
@@ -721,10 +908,7 @@ class InteractionChecker:
 # CONVENIENCE FUNCTION
 # ============================================================================
 
-def check_interaction(
-    finding: Dict[str, Any],
-    logger=None,
-) -> InteractionOutcome:
+def check_interaction(finding: Dict[str, Any],logger=None) -> InteractionOutcome:
     """
     Convenience wrapper around InteractionChecker.
 
@@ -740,10 +924,5 @@ def check_interaction(
         print(outcome.blue_reward)
     """
 
-    checker = InteractionChecker(
-        logger=logger
-    )
-
-    return checker.check(
-        finding
-    )
+    checker = InteractionChecker(logger=logger)
+    return checker.check(finding)

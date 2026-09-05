@@ -438,7 +438,7 @@ Blue defense candidate that was actually challenged.
 # GRPO ROLLOUTS
 # ============================================================================
 
-NUM_ROLLOUTS = 5
+NUM_ROLLOUTS = 8
 
 TOP_K = 3
 
@@ -457,9 +457,9 @@ TOP_P = 0.95
 
 DO_SAMPLE = True
 
-MAX_INPUT_TOKENS = 1024
+MAX_INPUT_TOKENS = 6148
 
-MAX_NEW_TOKENS = 512
+MAX_NEW_TOKENS = 1024
 
 GENERATION_BATCH_SIZE = 1
 
@@ -719,7 +719,7 @@ USE_DETERMINISTIC_CHECKS = True
 
 USE_SEMANTIC_ORACLE = True
 
-ORACLE_JUDGMENTS = 2
+ORACLE_JUDGMENTS = 3
 
 ORACLE_TEMPERATURE = 0.2
 

@@ -55,7 +55,7 @@ from transformers import (
 
 from configs import config
 from src.data.models import GenerationResult
-
+from src.generation.chat_formatter import format_chat_prompt
 
 class _RoleModelView(torch.nn.Module):
     """
@@ -71,287 +71,104 @@ class _RoleModelView(torch.nn.Module):
     large base model.
     """
 
-    def __init__(
-        self,
-        model,
-        adapter_name: str,
-    ) -> None:
-
+    def __init__(self,model,adapter_name: str) -> None:
         super().__init__()
-
         self._shared_model = model
-
         self.adapter_name = adapter_name
 
-    def _activate(
-        self,
-    ) -> None:
+    def _activate(self) -> None:
+        if hasattr(self._shared_model,"set_adapter"):
+            self._shared_model.set_adapter(self.adapter_name)
+        current_token = (f".{self.adapter_name}.")
 
-        if hasattr(
-            self._shared_model,
-            "set_adapter",
-        ):
-
-            self._shared_model.set_adapter(
-                self.adapter_name
-            )
-
-        current_token = (
-            f".{self.adapter_name}."
-        )
-
-        for (
-            name,
-            parameter,
-        ) in self._shared_model.named_parameters():
-
+        for (name,parameter) in self._shared_model.named_parameters():
             if current_token not in name:
-
                 parameter.requires_grad = False
-
         current_count = 0
 
-        for (
-            name,
-            parameter,
-        ) in self._shared_model.named_parameters():
-
+        for (name,parameter) in self._shared_model.named_parameters():
             if current_token in name:
-
                 parameter.requires_grad = True
-
                 current_count += 1
-
         if current_count == 0:
-
             raise RuntimeError(
                 f"No parameters found for active "
-                f"LoRA adapter '{self.adapter_name}'."
-            )
+                f"LoRA adapter '{self.adapter_name}'.")
 
-    def forward(
-        self,
-        *args,
-        **kwargs,
-    ):
+    def forward(self,*args,**kwargs):
 
-        active = getattr(
-            self._shared_model,
-            "active_adapter",
-            self.adapter_name,
-        )
-
-        if isinstance(
-            active,
-            (list, tuple),
-        ):
-
-            active_names = list(
-                active
-            )
-
+        active = getattr(self._shared_model,"active_adapter",self.adapter_name)
+        if isinstance(active,(list, tuple)):
+            active_names = list(active)
         else:
-
-            active_names = [
-                active
-            ]
-
-        reference_active = any(
-            isinstance(
-                name,
-                str,
-            )
-            and name.startswith(
-                "__sogarl_reference__"
-            )
-            for name in active_names
-        )
-
+            active_names = [active]
+        reference_active = any(isinstance(name,str) and name.startswith("__sogarl_reference__") for name in active_names)
         if not reference_active:
-
             self._activate()
 
-        return self._shared_model(
-            *args,
-            **kwargs,
-        )
+        return self._shared_model(*args,**kwargs)
 
-    def parameters(
-        self,
-        recurse: bool = True,
-    ):
-
+    def parameters(self,recurse: bool = True):
         self._activate()
-
-        token = (
-            f".{self.adapter_name}."
-        )
-
-        for (
-            name,
-            parameter,
-        ) in self._shared_model.named_parameters(
-            recurse=recurse
-        ):
-
+        token = (f".{self.adapter_name}.")
+        for (name,parameter) in self._shared_model.named_parameters(recurse=recurse):
             if token in name:
-
                 yield parameter
 
-    def named_parameters(
-        self,
-        prefix: str = "",
-        recurse: bool = True,
-        remove_duplicate: bool = True,
-    ):
-
+    def named_parameters(self,prefix: str = "",recurse: bool = True,remove_duplicate: bool = True):
         self._activate()
-
-        token = (
-            f".{self.adapter_name}."
-        )
-
-        for (
-            name,
-            parameter,
-        ) in self._shared_model.named_parameters(
-            prefix=prefix,
-            recurse=recurse,
-            remove_duplicate=remove_duplicate,
-        ):
-
+        token = (f".{self.adapter_name}.")
+        for (name,parameter) in self._shared_model.named_parameters(prefix=prefix,recurse=recurse,remove_duplicate=remove_duplicate):
             if token in name:
+                yield (name,parameter)
 
-                yield (
-                    name,
-                    parameter,
-                )
-
-    def train(
-        self,
-        mode: bool = True,
-    ):
-
+    def train(self,mode: bool = True):
         self._activate()
-
-        self._shared_model.train(
-            mode
-        )
-
+        self._shared_model.train(mode)
         self.training = mode
-
         return self
 
-    def eval(
-        self,
-    ):
-
+    def eval(self):
         self._activate()
-
         self._shared_model.eval()
-
         self.training = False
-
         return self
 
-    def state_dict(
-        self,
-        *args,
-        **kwargs,
-    ):
+    def state_dict(self,*args,**kwargs):
+        return self._shared_model.state_dict(*args,**kwargs)
 
-        return self._shared_model.state_dict(
-            *args,
-            **kwargs,
-        )
-
-    def __getattr__(
-        self,
-        name,
-    ):
-
-        if name in {
-            "_shared_model",
-            "adapter_name",
-        }:
-
-            return super().__getattr__(
-                name
-            )
-
-        return getattr(
-            self._shared_model,
-            name,
-        )
-
+    def __getattr__(self,name):
+        if name in {"_shared_model","adapter_name"}:
+            return super().__getattr__(name)
+        return getattr(self._shared_model,name)
 
 class Generator:
-
-    # ==================================================================
     # SHARED BACKBONE STATE
-    # ==================================================================
 
     _shared_model = None
-
     _shared_tokenizer = None
-
     _shared_model_source = None
-
     _shared_device = None
-
     _shared_adapter_names = set()
 
-    # ==================================================================
     # INITIALIZATION
-    # ==================================================================
 
-    def __init__(
-        self,
-        model,
-        tokenizer,
-        device: torch.device,
-        role: str,
-        model_name: str = "unknown",
-        max_input_tokens: int = config.MAX_INPUT_TOKENS,
-        max_new_tokens: int = config.MAX_NEW_TOKENS,
-        top_p: float = 0.95,
-        do_sample: bool = True,
-        generation_batch_size: int = 1,
-        logger=None,
-    ) -> None:
+    def __init__(self,model,tokenizer,device: torch.device,role: str,model_name: str = "unknown",max_input_tokens: int = config.MAX_INPUT_TOKENS,
+                 max_new_tokens: int = config.MAX_NEW_TOKENS,top_p: float = 0.95,do_sample: bool = True,generation_batch_size: int = 1,logger=None) -> None:
 
         self.model = model
-
         self.tokenizer = tokenizer
-
         self.device = device
-
         self.role = role.lower()
-
         self.model_name = model_name
-
         self.adapter_name = self.role
-
-        self.max_input_tokens = (
-            max_input_tokens
-        )
-
-        self.max_new_tokens = (
-            max_new_tokens
-        )
-
+        self.max_input_tokens = (max_input_tokens)
+        self.max_new_tokens = (max_new_tokens)
         self.top_p = top_p
-
         self.do_sample = do_sample
-
-        self.generation_batch_size = (
-            generation_batch_size
-        )
-
+        self.generation_batch_size = (generation_batch_size)
         self.logger = logger
-
         self._validate_config()
-
         self._prepare_tokenizer()
 
     # ==================================================================
@@ -359,56 +176,30 @@ class Generator:
     # ==================================================================
 
     @classmethod
-    def from_config(
-        cls,
-        role: str,
-        logger=None,
-    ) -> "Generator":
-
+    def from_config(cls,role: str,logger=None) -> "Generator":
         role = cls._validate_role(role)
-
-        adapter_path = (
-            config.RED_ADAPTER_PATH
-            if role == "red"
-            else config.BLUE_ADAPTER_PATH
-        )
-
+        adapter_path = (config.RED_ADAPTER_PATH if role == "red" else config.BLUE_ADAPTER_PATH)
         # DEFAULT: use the required shared-base + LoRA architecture.
         # Merged models are only an explicit compatibility option.
-        use_merged_model = bool(
-            getattr(config, "USE_MERGED_MODEL", False)
-        )
-
+        use_merged_model = bool(getattr(config, "USE_MERGED_MODEL", False))
         if use_merged_model:
-
-            merged_model_path = cls._find_merged_model(
-                role=role,
-                adapter_path=adapter_path,
-            )
-
+            merged_model_path = cls._find_merged_model(role=role,adapter_path=adapter_path)
             if merged_model_path is None:
                 raise FileNotFoundError(
                     f"{role.capitalize()} merged-model loading was "
                     f"explicitly enabled, but no valid merged model "
-                    f"was found. Check {role.upper()}_MERGED_MODEL_PATH."
-                )
+                    f"was found. Check {role.upper()}_MERGED_MODEL_PATH.")
 
             if logger:
                 logger.warning(
                     f"Loading {role.capitalize()} from an explicit "
-                    f"MERGED MODEL configuration."
-                )
+                    f"MERGED MODEL configuration.")
                 logger.warning(
                     "Merged-model mode is for inference/evaluation "
                     "compatibility and is NOT the normal SOGARL "
-                    "shared-LoRA training path."
-                )
+                    "shared-LoRA training path.")
 
-            return cls.from_merged_model(
-                role=role,
-                model_path=merged_model_path,
-                logger=logger,
-            )
+            return cls.from_merged_model(role=role,model_path=merged_model_path,logger=logger)
 
         # First attempt: ONE shared base + role LoRA.
         try:
@@ -439,86 +230,40 @@ class Generator:
     # ==================================================================
 
     @classmethod
-    def from_merged_model(
-        cls,
-        role: str,
-        model_path: str | Path,
-        logger=None,
-    ) -> "Generator":
-
-        role = cls._validate_role(
-            role
-        )
-
-        model_path = (
-            Path(model_path)
-            .expanduser()
-            .resolve()
-        )
+    def from_merged_model(cls,role: str,model_path: str | Path,logger=None) -> "Generator":
+        role = cls._validate_role(role)
+        model_path = (Path(model_path).expanduser().resolve())
 
         if not model_path.exists():
 
             raise FileNotFoundError(
                 f"{role.capitalize()} merged model "
-                f"does not exist:\n{model_path}"
-            )
+                f"does not exist:\n{model_path}")
 
         if not model_path.is_dir():
 
             raise NotADirectoryError(
                 f"{role.capitalize()} merged model "
                 f"path is not a directory:\n"
-                f"{model_path}"
-            )
+                f"{model_path}")
 
-        if not (
-            model_path / "config.json"
-        ).is_file():
-
+        if not (model_path / "config.json").is_file():
             raise FileNotFoundError(
                 f"config.json was not found in "
-                f"merged model:\n{model_path}"
-            )
+                f"merged model:\n{model_path}")
 
         device = cls._resolve_device()
-
-        dtype = cls._resolve_dtype(
-            device
-        )
-
+        dtype = cls._resolve_dtype(device)
         if logger:
-
             logger.info(
                 f"Loading {role.capitalize()} "
-                f"merged model locally"
-            )
+                f"merged model locally")
+            logger.info(f"Model  : {model_path}")
+            logger.info(f"Device : {device}")
 
-            logger.info(
-                f"Model  : {model_path}"
-            )
-
-            logger.info(
-                f"Device : {device}"
-            )
-
-        tokenizer = (
-            AutoTokenizer.from_pretrained(
-                str(model_path),
-                use_fast=True,
-                local_files_only=True,
-            )
-        )
-
-        model = (
-            AutoModelForCausalLM.from_pretrained(
-                str(model_path),
-                torch_dtype=dtype,
-                local_files_only=True,
-            )
-        )
-
+        tokenizer = (AutoTokenizer.from_pretrained(str(model_path),use_fast=True,local_files_only=True))
+        model = (AutoModelForCausalLM.from_pretrained(str(model_path),torch_dtype=dtype,local_files_only=True))
         model.to(device)
-
         model.eval()
 
         return cls(
@@ -526,21 +271,13 @@ class Generator:
             tokenizer=tokenizer,
             device=device,
             role=role,
-            model_name=str(
-                model_path
-            ),
-            max_input_tokens=(
-                config.MAX_INPUT_TOKENS
-            ),
-            max_new_tokens=(
-                config.MAX_NEW_TOKENS
-            ),
+            model_name=str(model_path),
+            max_input_tokens=(config.MAX_INPUT_TOKENS),
+            max_new_tokens=(config.MAX_NEW_TOKENS),
             top_p=config.TOP_P,
             do_sample=config.DO_SAMPLE,
-            generation_batch_size=(
-                config.GENERATION_BATCH_SIZE
-            ),
-            logger=logger,
+            generation_batch_size=(config.GENERATION_BATCH_SIZE),
+            logger=logger
         )
 
     # ==================================================================
@@ -548,68 +285,23 @@ class Generator:
     # ==================================================================
 
     @staticmethod
-    def _find_merged_model(
-        role: str,
-        adapter_path: str | Path,
-    ) -> Optional[Path]:
-
+    def _find_merged_model(role: str,adapter_path: str | Path) -> Optional[Path]:
         role = role.lower()
-
         if role == "red":
-
-            configured = getattr(
-                config,
-                "RED_MERGED_MODEL_PATH",
-                None,
-            )
-
+            configured = getattr(config,"RED_MERGED_MODEL_PATH",None)
         else:
-
-            configured = getattr(
-                config,
-                "BLUE_MERGED_MODEL_PATH",
-                None,
-            )
-
+            configured = getattr(config,"BLUE_MERGED_MODEL_PATH",None)
         if configured:
+            configured_path = (Path(configured).expanduser().resolve())
 
-            configured_path = (
-                Path(configured)
-                .expanduser()
-                .resolve()
-            )
-
-            if (
-                configured_path.is_dir()
-                and (
-                    configured_path
-                    / "config.json"
-                ).is_file()
-            ):
-
+            if (configured_path.is_dir() and (configured_path/"config.json").is_file()):
                 return configured_path
 
-        adapter_path = (
-            Path(adapter_path)
-            .expanduser()
-            .resolve()
-        )
+        adapter_path = (Path(adapter_path).expanduser().resolve())
+        sibling_path = (adapter_path.parent/"merged_model")
 
-        sibling_path = (
-            adapter_path.parent
-            / "merged_model"
-        )
-
-        if (
-            sibling_path.is_dir()
-            and (
-                sibling_path
-                / "config.json"
-            ).is_file()
-        ):
-
+        if (sibling_path.is_dir() and (sibling_path/"config.json").is_file()):
             return sibling_path
-
         return None
 
     # ==================================================================
@@ -617,95 +309,46 @@ class Generator:
     # ==================================================================
 
     @classmethod
-    def from_adapter(
-        cls,
-        role: str,
-        adapter_path: str | Path,
-        logger=None,
-        is_trainable: bool = True,
-    ) -> "Generator":
-
-        role = cls._validate_role(
-            role
-        )
-
-        base_model_name = (
-            config.BASE_MODEL_NAME
-        )
-
-        adapter_path = Path(
-            adapter_path
-        ).expanduser().resolve()
+    def from_adapter(cls,role: str,adapter_path: str | Path,logger=None,is_trainable: bool = True) -> "Generator":
+        role = cls._validate_role(role)
+        base_model_name = (config.BASE_MODEL_NAME)
+        adapter_path = Path(adapter_path).expanduser().resolve()
 
         if not adapter_path.exists():
 
             raise FileNotFoundError(
                 f"{role.capitalize()} LoRA adapter "
-                f"does not exist:\n{adapter_path}"
-            )
+                f"does not exist:\n{adapter_path}")
 
         device = cls._resolve_device()
-
-        dtype = cls._resolve_dtype(
-            device
-        )
-
-        local_base_path = (
-            cls._resolve_local_base_model(
-                base_model_name
-            )
-        )
+        dtype = cls._resolve_dtype(device)
+        local_base_path = (cls._resolve_local_base_model(base_model_name))
 
         if local_base_path is not None:
-
-            model_source = str(
-                local_base_path
-            )
-
+            model_source = str(local_base_path)
             local_files_only = True
 
         else:
-
-            model_source = str(
-                base_model_name
-            )
-
+            model_source = str(base_model_name)
             local_files_only = False
 
         if logger:
-
-            logger.info(
-                f"Loading {role.capitalize()} policy"
-            )
-
+            logger.info(f"Loading {role.capitalize()} policy")
             logger.info(
                 f"Base model : "
-                f"{model_source}"
-            )
-
+                f"{model_source}")
             logger.info(
                 f"Adapter    : "
-                f"{adapter_path}"
-            )
-
+                f"{adapter_path}")
             logger.info(
                 f"Device     : "
-                f"{device}"
-            )
-
+                f"{device}")
             if local_files_only:
-
-                logger.info(
-                    "Base model source: LOCAL"
-                )
-
+                logger.info("Base model source: LOCAL")
             else:
-
                 logger.info(
                     "Base model source: "
-                    "HUGGING FACE FALLBACK"
-                )
-
+                    "HUGGING FACE FALLBACK")
         if (
             cls._shared_tokenizer is None
             or cls._shared_model_source
@@ -1338,28 +981,18 @@ class Generator:
         return results
 
     @torch.inference_mode()
-    def _generate_batch(
-        self,
-        prompts: List[str],
-        temperature: float,
-        generation_indices: List[int],
-        metadata: Optional[
-            Dict[str, Any]
-        ],
-        turn: int,
-        generation_type: str,
-    ) -> List[GenerationResult]:
-
+    def _generate_batch(self,prompts: List[str],temperature: float,generation_indices: List[int],
+                        metadata: Optional[Dict[str, Any]],turn: int,generation_type: str) -> List[GenerationResult]:
         self._activate_adapter()
-
+        formatted_prompts = [format_chat_prompt(self.tokenizer, prompt) for prompt in prompts]
         inputs = self.tokenizer(
-            prompts,
-            return_tensors="pt",
-            padding=True,
-            truncation=True,
-            max_length=self.max_input_tokens,
-            return_attention_mask=True,
-        )
+        formatted_prompts,
+        return_tensors="pt",
+        padding=True,
+        truncation=True,
+        max_length=self.max_input_tokens,
+        return_attention_mask=True,
+        add_special_tokens=False)
 
         inputs = {
             key: value.to(
@@ -1640,22 +1273,21 @@ class Generator:
         """
 
         self._activate_adapter()
+        formatted_prompt = format_chat_prompt(self.tokenizer,prompt)
 
         prompt_tokens = self.tokenizer(
-            prompt,
-            add_special_tokens=True,
+            formatted_prompt,
+            add_special_tokens=False,
             return_tensors="pt",
             truncation=True,
-            max_length=self.max_input_tokens,
-        )
+            max_length=self.max_input_tokens)
 
         response_tokens = self.tokenizer(
             response,
             add_special_tokens=False,
             return_tensors="pt",
             truncation=True,
-            max_length=self.max_new_tokens,
-        )
+            max_length=self.max_new_tokens)
 
         prompt_ids = (
             prompt_tokens[
@@ -1882,29 +1514,13 @@ class Generator:
     # MODEL ACCESS
     # ==================================================================
 
-    def _activate_adapter(
-        self,
-    ) -> None:
-
+    def _activate_adapter(self) -> None:
         model = self.model
-
-        if hasattr(
-            model,
-            "_activate",
-        ):
-
+        if hasattr(model,"_activate"):
             model._activate()
-
             return
-
-        if hasattr(
-            model,
-            "_shared_model",
-        ):
-
-            shared = (
-                model._shared_model
-            )
+        if hasattr(model,"_shared_model"):
+            shared = (model._shared_model)
 
             if hasattr(
                 shared,
@@ -1939,51 +1555,28 @@ class Generator:
 
         return self.role
 
-    def get_generation_config(
-        self,
-    ) -> Dict[str, Any]:
-
+    def get_generation_config(self) -> Dict[str, Any]:
         return {
             "role": self.role,
             "model_name": self.model_name,
-            "max_input_tokens": (
-                self.max_input_tokens
-            ),
-            "max_new_tokens": (
-                self.max_new_tokens
-            ),
+            "max_input_tokens": (self.max_input_tokens),
+            "max_new_tokens": (self.max_new_tokens),
             "top_p": self.top_p,
             "do_sample": self.do_sample,
-            "generation_batch_size": (
-                self.generation_batch_size
-            ),
-            "device": str(
-                self.device
-            ),
-        }
+            "generation_batch_size": (self.generation_batch_size),
+            "device": str(self.device)}
 
     # ==================================================================
     # TRAINING / EVALUATION STATE
     # ==================================================================
 
-    def train(
-        self,
-    ) -> None:
-
+    def train(self) -> None:
         self._activate_adapter()
-
         self.model.train()
 
-    def eval(
-        self,
-    ) -> None:
-
+    def eval(self) -> None:
         self._activate_adapter()
-
         self.model.eval()
 
-    def is_training(
-        self,
-    ) -> bool:
-
+    def is_training(self) -> bool:
         return self.model.training

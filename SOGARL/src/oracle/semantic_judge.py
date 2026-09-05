@@ -1,6 +1,4 @@
 """
-semantic_judge.py
-
 SOGARL Semantic Oracle Judge
 ============================
 
@@ -29,7 +27,6 @@ This module does NOT:
     - modify scenario objects
 
 Architecture
-------------
 
                 Shared PeftModel
                        |
@@ -53,8 +50,11 @@ from __future__ import annotations
 import json
 import re
 from typing import Any, Dict, List, Optional
+
 import torch
+
 from configs import config
+from src.generation.chat_formatter import format_chat_prompt
 
 
 # ============================================================================
@@ -105,13 +105,9 @@ class SemanticJudge:
     ) -> None:
 
         self.base_generator = base_generator
-
         self.logger = logger
-
         self.model = model
-
         self.tokenizer = tokenizer
-
         self.device = device
 
         # --------------------------------------------------------------
@@ -121,44 +117,32 @@ class SemanticJudge:
         if self.base_generator is not None:
 
             if self.model is None:
-
-                self.model = (
-                    self._unwrap_generator_model(
-                        self.base_generator
-                    )
+                self.model = self._unwrap_generator_model(
+                    self.base_generator
                 )
 
             if self.tokenizer is None:
-
-                self.tokenizer = (
-                    self.base_generator.get_tokenizer()
-                )
+                self.tokenizer = self.base_generator.get_tokenizer()
 
             if self.device is None:
-
-                self.device = (
-                    self.base_generator.get_device()
-                )
+                self.device = self.base_generator.get_device()
 
         # --------------------------------------------------------------
         # Final validation.
         # --------------------------------------------------------------
 
         if self.model is None:
-
             raise ValueError(
                 "SemanticJudge requires an already-loaded "
                 "SOGARL model."
             )
 
         if self.tokenizer is None:
-
             raise ValueError(
                 "SemanticJudge requires a tokenizer."
             )
 
         if self.device is None:
-
             raise ValueError(
                 "SemanticJudge requires a model device."
             )
@@ -178,24 +162,10 @@ class SemanticJudge:
         temperature: float = 0.2,
         **kwargs,
     ) -> Dict[str, Any]:
-        """
-        Main interface used by Oracle.
 
-        Supported candidate types:
-
-            attack
-            defense
-            interaction
-        """
-
-        candidate_type = (
-            str(candidate_type)
-            .strip()
-            .lower()
-        )
+        candidate_type = str(candidate_type).strip().lower()
 
         if candidate_type == "attack":
-
             return self.score_attack(
                 response=response,
                 scenario=scenario,
@@ -204,7 +174,6 @@ class SemanticJudge:
             )
 
         if candidate_type == "defense":
-
             return self.score_defense(
                 response=response,
                 scenario=scenario,
@@ -214,7 +183,6 @@ class SemanticJudge:
             )
 
         if candidate_type == "interaction":
-
             return self.evaluate_interaction(
                 response=response,
                 scenario=scenario,
@@ -239,24 +207,8 @@ class SemanticJudge:
         judgments: int = 2,
         temperature: float = 0.2,
     ) -> Dict[str, Any]:
-        """
-        Semantically evaluate a Red Turn-1 attack candidate.
 
-        Semantic evaluation provides evidence for:
-
-            root_cause_score
-            reasoning_score
-            attack_label_score
-            relevant_files_score
-            format_score
-
-        Deterministic Oracle evidence remains authoritative whenever
-        the deterministic checker has a non-None value.
-        """
-
-        metadata = self._oracle_metadata(
-            scenario
-        )
+        metadata = self._oracle_metadata(scenario)
 
         prompt = self._build_attack_prompt(
             response=response,
@@ -269,9 +221,7 @@ class SemanticJudge:
             temperature=temperature,
         )
 
-        return self._aggregate_candidate_judgments(
-            results
-        )
+        return self._aggregate_candidate_judgments(results)
 
     # ==================================================================
     # DEFENSE SCORING
@@ -285,13 +235,8 @@ class SemanticJudge:
         judgments: int = 2,
         temperature: float = 0.2,
     ) -> Dict[str, Any]:
-        """
-        Semantically evaluate a Blue Turn-2 defense candidate.
-        """
 
-        metadata = self._oracle_metadata(
-            scenario
-        )
+        metadata = self._oracle_metadata(scenario)
 
         prompt = self._build_defense_prompt(
             response=response,
@@ -305,9 +250,7 @@ class SemanticJudge:
             temperature=temperature,
         )
 
-        return self._aggregate_candidate_judgments(
-            results
-        )
+        return self._aggregate_candidate_judgments(results)
 
     # ==================================================================
     # TURN-3 INTERACTION
@@ -321,29 +264,8 @@ class SemanticJudge:
         judgments: int = 2,
         temperature: float = 0.2,
     ) -> Dict[str, Any]:
-        """
-        Semantically evaluate a Red Turn-3 challenge.
 
-        The returned structure is directly compatible with:
-
-            Oracle._map_interaction_reward()
-
-        Required interaction fields:
-
-            red_claim_type
-            claimed_attack
-            claimed_attack_valid
-            claimed_attack_remains
-            no_attack_verified
-            real_attack_remains
-            remaining_attacks
-            verified_attack
-            explanation
-        """
-
-        metadata = self._oracle_metadata(
-            scenario
-        )
+        metadata = self._oracle_metadata(scenario)
 
         prompt = self._build_interaction_prompt(
             response=response,
@@ -357,9 +279,13 @@ class SemanticJudge:
             temperature=temperature,
         )
 
-        aggregated = self._aggregate_interaction_judgments(results)
+        aggregated = self._aggregate_interaction_judgments(
+            results
+        )
+
         return self._validate_interaction_result(
-            aggregated, metadata
+            aggregated,
+            metadata,
         )
 
     # ==================================================================
@@ -370,17 +296,6 @@ class SemanticJudge:
         self,
         scenario,
     ) -> Dict[str, Any]:
-        """
-        Extract Oracle-only ground truth.
-
-        This method intentionally accesses:
-
-            scenario.metadata
-
-        because SemanticJudge is part of the Oracle.
-
-        Policy prompts never call this method.
-        """
 
         metadata = getattr(
             scenario,
@@ -388,11 +303,7 @@ class SemanticJudge:
             {},
         )
 
-        if not isinstance(
-            metadata,
-            dict,
-        ):
-
+        if not isinstance(metadata, dict):
             metadata = {}
 
         vulnerabilities = metadata.get(
@@ -435,26 +346,15 @@ class SemanticJudge:
             [],
         )
 
-        # --------------------------------------------------------------
-        # Some scenarios may store root cause inside vulnerabilities.
-        # --------------------------------------------------------------
-
         if root_cause is None:
 
             extracted_root_causes = []
 
-            if isinstance(
-                vulnerabilities,
-                list,
-            ):
+            if isinstance(vulnerabilities, list):
 
                 for vulnerability in vulnerabilities:
 
-                    if not isinstance(
-                        vulnerability,
-                        dict,
-                    ):
-
+                    if not isinstance(vulnerability, dict):
                         continue
 
                     value = vulnerability.get(
@@ -463,13 +363,11 @@ class SemanticJudge:
                     )
 
                     if value:
-
                         extracted_root_causes.append(
                             str(value)
                         )
 
             if extracted_root_causes:
-
                 root_cause = "\n".join(
                     extracted_root_causes
                 )
@@ -503,9 +401,6 @@ class SemanticJudge:
         response: str,
         metadata: Dict[str, Any],
     ) -> str:
-        """
-        Construct the Oracle-only Red evaluation prompt.
-        """
 
         return f"""
 You are the semantic evaluator inside the SOGARL security Oracle.
@@ -623,16 +518,10 @@ All scores MUST be numbers between 0 and 1.
         attack_response: Optional[str],
         metadata: Dict[str, Any],
     ) -> str:
-        """
-        Construct the Oracle-only Blue evaluation prompt.
-        """
 
         if attack_response:
-
             attack_text = attack_response
-
         else:
-
             attack_text = (
                 "[Attack_best was not supplied to Blue "
                 "because the confidence gate did not hand it over.]"
@@ -739,15 +628,6 @@ All scores MUST be numbers between 0 and 1.
         blue_defense: str,
         metadata: Dict[str, Any],
     ) -> str:
-        """
-        Construct the Oracle-only Turn-3 interaction prompt.
-
-        The critical question is:
-
-            Which vulnerabilities remain AFTER Blue's defense?
-
-        Red's claim itself is not trusted.
-        """
 
         return f"""
 You are the semantic interaction verifier inside SOGARL.
@@ -807,7 +687,7 @@ Determine ALL of the following:
 6. List every genuine remaining attack.
 
 7. If Red claims that no attack remains, independently determine
-   whether that claim is correct.
+whether that claim is correct.
 
 IMPORTANT:
 
@@ -883,27 +763,10 @@ Do not return additional text.
         judgments: int,
         temperature: float,
     ) -> List[Dict[str, Any]]:
-        """
-        Run multiple semantic judgments.
-
-        SOGARL configuration normally uses:
-
-            ORACLE_JUDGMENTS = 2
-
-        Invalid model outputs are discarded.
-
-        If every judgment fails, the candidate scoring path returns
-        unavailable semantic evidence rather than fabricating a score.
-        """
 
         try:
-
-            count = int(
-                judgments
-            )
-
+            count = int(judgments)
         except Exception:
-
             count = 1
 
         count = max(
@@ -922,15 +785,11 @@ Do not return additional text.
                     temperature=temperature,
                 )
 
-                parsed = self._parse_json(
-                    raw
-                )
+                parsed = self._parse_json(raw)
 
                 if parsed is not None:
 
-                    results.append(
-                        parsed
-                    )
+                    results.append(parsed)
 
                 else:
 
@@ -958,24 +817,17 @@ Do not return additional text.
         prompt: str,
         temperature: float,
     ) -> str:
-        """
-        Generate using the underlying shared base model.
-
-        Policy LoRA adapters are disabled during this operation.
-
-        No additional base model is loaded.
-        """
 
         model = self.model
-
         tokenizer = self.tokenizer
 
-        # --------------------------------------------------------------
-        # Tokenize.
-        # --------------------------------------------------------------
+        formatted_prompt = format_chat_prompt(
+            tokenizer,
+            prompt,
+        )
 
         inputs = tokenizer(
-            prompt,
+            formatted_prompt,
             return_tensors="pt",
             truncation=True,
             max_length=int(
@@ -983,18 +835,13 @@ Do not return additional text.
             ),
             padding=True,
             return_attention_mask=True,
+            add_special_tokens=False,
         )
 
         inputs = {
-            key: value.to(
-                self.device
-            )
+            key: value.to(self.device)
             for key, value in inputs.items()
         }
-
-        # --------------------------------------------------------------
-        # Preserve state.
-        # --------------------------------------------------------------
 
         was_training = bool(
             getattr(
@@ -1004,22 +851,13 @@ Do not return additional text.
             )
         )
 
-        previous_adapter = (
-            self._get_active_adapter(
-                model
-            )
+        previous_adapter = self._get_active_adapter(
+            model
         )
 
         model.eval()
 
         try:
-
-            # ----------------------------------------------------------
-            # PEFT PeftModel supports disable_adapter().
-            #
-            # This is the actual shared PeftModel supplied by the
-            # current Generator._shared_model.
-            # ----------------------------------------------------------
 
             disable_adapter = getattr(
                 model,
@@ -1027,9 +865,7 @@ Do not return additional text.
                 None,
             )
 
-            if callable(
-                disable_adapter
-            ):
+            if callable(disable_adapter):
 
                 with disable_adapter():
 
@@ -1041,10 +877,6 @@ Do not return additional text.
 
             else:
 
-                # ------------------------------------------------------
-                # Plain base-model fallback.
-                # ------------------------------------------------------
-
                 output = self._raw_generate(
                     model=model,
                     inputs=inputs,
@@ -1053,18 +885,10 @@ Do not return additional text.
 
         finally:
 
-            # ----------------------------------------------------------
-            # Restore the previous adapter.
-            # ----------------------------------------------------------
-
             self._restore_adapter(
                 model=model,
                 adapter=previous_adapter,
             )
-
-            # ----------------------------------------------------------
-            # Restore training/eval state.
-            # ----------------------------------------------------------
 
             if was_training:
 
@@ -1080,18 +904,9 @@ Do not return additional text.
                 except Exception:
                     pass
 
-        # --------------------------------------------------------------
-        # Extract only newly generated tokens.
-        # --------------------------------------------------------------
+        input_length = inputs["input_ids"].shape[-1]
 
-        input_length = (
-            inputs["input_ids"]
-            .shape[-1]
-        )
-
-        generated_tokens = (
-            output[:, input_length:]
-        )
+        generated_tokens = output[:, input_length:]
 
         text = tokenizer.decode(
             generated_tokens[0],
@@ -1110,9 +925,6 @@ Do not return additional text.
         inputs,
         temperature: float,
     ):
-        """
-        Perform Hugging Face generation.
-        """
 
         temperature = max(
             float(temperature),
@@ -1132,12 +944,8 @@ Do not return additional text.
                     0.95,
                 )
             ),
-            "pad_token_id": (
-                self._pad_token_id()
-            ),
-            "eos_token_id": (
-                self._eos_token_id()
-            ),
+            "pad_token_id": self._pad_token_id(),
+            "eos_token_id": self._eos_token_id(),
         }
 
         return model.generate(
@@ -1153,10 +961,6 @@ Do not return additional text.
     def _get_active_adapter(
         model,
     ):
-        """
-        Obtain the active PEFT adapter if available.
-        """
-
         return getattr(
             model,
             "active_adapter",
@@ -1168,12 +972,6 @@ Do not return additional text.
         model,
         adapter,
     ) -> None:
-        """
-        Restore the previously active adapter.
-
-        PEFT can expose the active adapter as either a string or
-        a list depending on version.
-        """
 
         if adapter is None:
             return
@@ -1184,34 +982,22 @@ Do not return additional text.
             None,
         )
 
-        if not callable(
-            setter
-        ):
+        if not callable(setter):
             return
 
         try:
 
-            setter(
-                adapter
-            )
+            setter(adapter)
 
         except Exception:
 
-            # ----------------------------------------------------------
-            # Some PEFT versions expose a one-element list.
-            # ----------------------------------------------------------
-
-            if isinstance(
-                adapter,
-                list,
-            ) and len(adapter) == 1:
+            if (
+                isinstance(adapter, list)
+                and len(adapter) == 1
+            ):
 
                 try:
-
-                    setter(
-                        adapter[0]
-                    )
-
+                    setter(adapter[0])
                 except Exception:
                     pass
 
@@ -1256,14 +1042,6 @@ Do not return additional text.
         self,
         results: List[Dict[str, Any]],
     ) -> Dict[str, Any]:
-        """
-        Aggregate multiple candidate judgments by arithmetic mean.
-
-        Deterministic Oracle evidence has priority in oracle.py.
-
-        Semantic evidence is therefore used to fill components for
-        which deterministic evaluation returned None.
-        """
 
         score_keys = [
             "root_cause_score",
@@ -1272,10 +1050,6 @@ Do not return additional text.
             "relevant_files_score",
             "format_score",
         ]
-
-        # --------------------------------------------------------------
-        # No valid semantic judgments.
-        # --------------------------------------------------------------
 
         if not results:
 
@@ -1291,10 +1065,6 @@ Do not return additional text.
 
         output = {}
 
-        # --------------------------------------------------------------
-        # Average each component independently.
-        # --------------------------------------------------------------
-
         for key in score_keys:
 
             values = []
@@ -1309,10 +1079,7 @@ Do not return additional text.
                 )
 
                 if value is not None:
-
-                    values.append(
-                        value
-                    )
+                    values.append(value)
 
             if values:
 
@@ -1324,11 +1091,6 @@ Do not return additional text.
             else:
 
                 output[key] = None
-
-        # --------------------------------------------------------------
-        # Overall semantic score is the average of available semantic
-        # component scores.
-        # --------------------------------------------------------------
 
         valid_scores = [
             output[key]
@@ -1347,11 +1109,9 @@ Do not return additional text.
 
             output["semantic_score"] = None
 
-        output["semantic_available"] = bool(valid_scores)
-
-        # --------------------------------------------------------------
-        # Preserve explanations for logging/debugging.
-        # --------------------------------------------------------------
+        output["semantic_available"] = bool(
+            valid_scores
+        )
 
         explanations = []
 
@@ -1391,17 +1151,27 @@ Do not return additional text.
         """
         Aggregate Turn-3 semantic judgments.
 
-        Boolean facts are combined conservatively.
+        Boolean fields use MAJORITY VOTING.
 
-        For two judgments, a fact is considered true only when both
-        judgments agree on it.
+        With the recommended configuration:
 
-        This avoids turning a single hallucinated semantic judgment
-        into an interaction reward.
+            ORACLE_JUDGMENTS = 3
+
+        examples:
+
+            True, True, False  -> True
+            True, False, True  -> True
+            False, False, True -> False
+            False, True, False -> False
+
+        An exact tie is returned as None because there is no majority.
+        This preserves the safety property that an unsupported factual
+        state is never fabricated.
+
+        String/list fields continue to use conservative consensus.
         """
 
         if not results:
-
             return {}
 
         # --------------------------------------------------------------
@@ -1414,12 +1184,38 @@ Do not return additional text.
 
         # --------------------------------------------------------------
         # Boolean fields
+        #
+        # IMPORTANT:
+        # This is the stability fix for stochastic Turn 3.
         # --------------------------------------------------------------
 
-        claimed_valid = self._consensus_bool(results, "claimed_attack_valid")
-        claimed_remains = self._consensus_bool(results, "claimed_attack_remains")
-        no_attack_verified = self._consensus_bool(results, "no_attack_verified")
-        real_attack_remains = self._consensus_bool(results, "real_attack_remains")
+        claimed_valid = self._consensus_bool(
+            results,
+            "claimed_attack_valid",
+        )
+
+        claimed_remains = self._consensus_bool(
+            results,
+            "claimed_attack_remains",
+        )
+
+        no_attack_verified = self._consensus_bool(
+            results,
+            "no_attack_verified",
+        )
+
+        real_attack_remains = self._consensus_bool(
+            results,
+            "real_attack_remains",
+        )
+
+        # --------------------------------------------------------------
+        # We require every factual boolean to have a majority.
+        #
+        # With ORACLE_JUDGMENTS=3 this means at least 2/3 agreement.
+        # If there is no majority, semantic evidence is incomplete and
+        # Oracle is allowed to fall back to deterministic evidence.
+        # --------------------------------------------------------------
 
         if any(
             value is None
@@ -1430,6 +1226,7 @@ Do not return additional text.
                 real_attack_remains,
             )
         ):
+
             return {}
 
         # --------------------------------------------------------------
@@ -1448,9 +1245,6 @@ Do not return additional text.
 
         # --------------------------------------------------------------
         # Remaining attacks.
-        #
-        # An attack is accepted only if it appears in every valid
-        # semantic judgment.
         # --------------------------------------------------------------
 
         remaining_attacks = (
@@ -1466,7 +1260,6 @@ Do not return additional text.
         if remaining_attacks:
 
             real_attack_remains = True
-
             no_attack_verified = False
 
         elif not real_attack_remains:
@@ -1474,8 +1267,7 @@ Do not return additional text.
             no_attack_verified = True
 
         # --------------------------------------------------------------
-        # If the judges agree that Red claims no attack, force the
-        # canonical claim representation.
+        # If judges agree that Red claims no attack, use canonical form.
         # --------------------------------------------------------------
 
         if claim_type == "no_attack":
@@ -1533,15 +1325,6 @@ Do not return additional text.
         self,
         results: List[Dict[str, Any]],
     ) -> str:
-        """
-        Determine Red's claim type.
-
-        If all judgments agree, use that claim.
-
-        If judgments disagree, prefer the explicit attack claim only
-        when at least one valid attack claim is present; otherwise
-        use no_attack.
-        """
 
         claims = []
 
@@ -1564,13 +1347,6 @@ Do not return additional text.
 
             return claims[0]
 
-        # --------------------------------------------------------------
-        # Conflict resolution.
-        #
-        # An explicit attack claim is the more information-preserving
-        # representation when judges disagree.
-        # --------------------------------------------------------------
-
         if "attack" in claims:
 
             return "attack"
@@ -1578,7 +1354,7 @@ Do not return additional text.
         return "no_attack"
 
     # ==================================================================
-    # BOOLEAN CONSENSUS
+    # BOOLEAN MAJORITY
     # ==================================================================
 
     @staticmethod
@@ -1586,21 +1362,59 @@ Do not return additional text.
         results: List[Dict[str, Any]],
         key: str,
     ) -> Optional[bool]:
+        """
+        Return the majority boolean value.
+
+        This replaces the previous unanimous-consensus behavior.
+
+        Why:
+            Turn-3 semantic judgments are sampled with temperature > 0.
+            Therefore occasional disagreement is expected.
+
+        Safety:
+            - At least one valid boolean is required.
+            - A strict majority is required.
+            - A tie returns None.
+            - Invalid/missing boolean values are ignored.
+        """
+
         if not results:
             return None
 
-        values = []
-        for result in results:
-            value = result.get(key)
-            if not isinstance(value, bool):
-                return None
-            values.append(value)
+        values: List[bool] = []
 
-        if all(value == values[0] for value in values):
-            return values[0]
+        for result in results:
+
+            value = result.get(
+                key,
+                None,
+            )
+
+            if isinstance(
+                value,
+                bool,
+            ):
+
+                values.append(value)
+
+        if not values:
+            return None
+
+        true_count = sum(
+            1
+            for value in values
+            if value
+        )
+
+        false_count = len(values) - true_count
+
+        if true_count > false_count:
+            return True
+
+        if false_count > true_count:
+            return False
 
         return None
-
 
     # ==================================================================
     # STRING CONSENSUS
@@ -1611,12 +1425,6 @@ Do not return additional text.
         results: List[Dict[str, Any]],
         key: str,
     ) -> Optional[str]:
-        """
-        Return a string only when a meaningful consensus exists.
-
-        For multiple judgments, the normalized representation must
-        agree.
-        """
 
         values = []
 
@@ -1648,7 +1456,6 @@ Do not return additional text.
             return None
 
         counts: Dict[str, int] = {}
-
         originals: Dict[str, str] = {}
 
         for normalized, original in values:
@@ -1670,10 +1477,6 @@ Do not return additional text.
             key=counts.get,
         )
 
-        # --------------------------------------------------------------
-        # For multiple judgments, require strict consensus.
-        # --------------------------------------------------------------
-
         required = len(results)
 
         if counts[winner] < required:
@@ -1690,19 +1493,11 @@ Do not return additional text.
         self,
         results: List[Dict[str, Any]],
     ) -> List[str]:
-        """
-        Keep only attacks appearing in every semantic judgment.
-
-        This is deliberately conservative because Turn 3 determines
-        the discrete interaction reward.
-        """
 
         if not results:
-
             return []
 
         normalized_sets = []
-
         display_names: Dict[str, str] = {}
 
         for result in results:
@@ -1728,12 +1523,9 @@ Do not return additional text.
                 )
 
                 if not normalized:
-
                     continue
 
-                current.add(
-                    normalized
-                )
+                current.add(normalized)
 
                 display_names[
                     normalized
@@ -1746,7 +1538,6 @@ Do not return additional text.
             )
 
         if not normalized_sets:
-
             return []
 
         consensus = normalized_sets[0]
@@ -1759,9 +1550,7 @@ Do not return additional text.
             )
 
         return [
-            display_names[
-                attack
-            ]
+            display_names[attack]
             for attack in consensus
         ]
 
@@ -1774,40 +1563,26 @@ Do not return additional text.
         result: Dict[str, Any],
         metadata: Dict[str, Any],
     ) -> Dict[str, Any]:
-        """
-        Validate semantic Turn-3 labels against Oracle ground truth.
-
-        IMPORTANT:
-        ``real_attack_remains`` is a factual semantic judgment and must
-        not be overwritten merely because the model did not return an
-        exact/canonical attack label in ``remaining_attacks``.
-
-        For example, the semantic judge may correctly determine that a
-        vulnerability remains while describing it in a form that cannot
-        be matched exactly to ``valid_attacks``.  In that situation,
-        converting the filtered list to ``bool(validated)`` would turn a
-        genuine ``True`` into ``False`` and could produce an incorrect
-        Case-2/Case-4 interaction reward in Oracle.
-
-        The validated attack list is therefore retained as a
-        ground-truth-consistent list, while the explicit boolean factual
-        state is preserved when it is present and valid.
-        """
 
         if not result:
             return {}
 
-        # Work on a copy so validation does not unexpectedly mutate the
-        # dictionary owned by the semantic aggregation path.
         result = dict(result)
 
         valid_attacks = [
             str(x).strip()
-            for x in (metadata.get("valid_attacks") or [])
+            for x in (
+                metadata.get(
+                    "valid_attacks"
+                )
+                or []
+            )
             if str(x).strip()
         ]
 
-        claimed = result.get("claimed_attack")
+        claimed = result.get(
+            "claimed_attack"
+        )
 
         if (
             claimed
@@ -1816,6 +1591,7 @@ Do not return additional text.
                 valid_attacks,
             )
         ):
+
             result["claimed_attack_valid"] = False
             result["claimed_attack_remains"] = False
 
@@ -1828,6 +1604,7 @@ Do not return additional text.
             remaining,
             list,
         ):
+
             return {}
 
         validated = []
@@ -1843,6 +1620,7 @@ Do not return additional text.
                 canonical is not None
                 and canonical not in validated
             ):
+
                 validated.append(
                     canonical
                 )
@@ -1851,9 +1629,6 @@ Do not return additional text.
 
         # --------------------------------------------------------------
         # Preserve the semantic factual state.
-        #
-        # Only infer it from the validated list when the semantic result
-        # did not provide a valid boolean value.
         # --------------------------------------------------------------
 
         semantic_real_attack_remains = result.get(
@@ -1865,28 +1640,29 @@ Do not return additional text.
             semantic_real_attack_remains,
             bool,
         ):
+
             real_attack_remains = (
                 semantic_real_attack_remains
             )
 
         else:
+
             real_attack_remains = bool(
                 validated
             )
 
-        # A validated remaining attack is definitive evidence that a
-        # real attack remains, so it may safely strengthen a False/missing
-        # semantic list result.
         if validated:
+
             real_attack_remains = True
 
         result["real_attack_remains"] = (
             real_attack_remains
         )
 
-        # ``no_attack_verified`` is similarly preserved when explicitly
-        # supplied as a boolean. Otherwise derive it from the resolved
-        # factual state.
+        # --------------------------------------------------------------
+        # Preserve explicit no_attack_verified where valid.
+        # --------------------------------------------------------------
+
         semantic_no_attack_verified = result.get(
             "no_attack_verified",
             None,
@@ -1896,34 +1672,41 @@ Do not return additional text.
             semantic_no_attack_verified,
             bool,
         ):
+
             no_attack_verified = (
                 semantic_no_attack_verified
             )
+
         else:
+
             no_attack_verified = (
                 not real_attack_remains
             )
 
-        # A validated remaining attack means "no attack" cannot be
-        # verified.
         if validated:
+
             no_attack_verified = False
 
         result["no_attack_verified"] = (
             no_attack_verified
         )
 
+        # --------------------------------------------------------------
+        # Validate claimed attack.
+        # --------------------------------------------------------------
+
         if (
-            result.get("claimed_attack")
+            result.get(
+                "claimed_attack"
+            )
             and self._label_in(
                 result["claimed_attack"],
                 valid_attacks,
             )
         ):
+
             result["claimed_attack_valid"] = True
 
-            # A valid claimed attack remains only when the validated
-            # remaining-attack list contains that exact canonical label.
             result["claimed_attack_remains"] = any(
                 self._normalize_text(
                     result["claimed_attack"]
@@ -1936,23 +1719,47 @@ Do not return additional text.
 
         return result
 
+    # ==================================================================
+    # LABEL HELPERS
+    # ==================================================================
+
     @staticmethod
-    def _label_in(value: Any, labels: List[str]) -> bool:
+    def _label_in(
+        value: Any,
+        labels: List[str],
+    ) -> bool:
+
         if value is None:
             return False
-        normalized = SemanticJudge._normalize_text(value)
+
+        normalized = SemanticJudge._normalize_text(
+            value
+        )
+
         return any(
-            normalized == SemanticJudge._normalize_text(label)
+            normalized
+            == SemanticJudge._normalize_text(label)
             for label in labels
         )
 
     @staticmethod
-    def _canonical_label(value: Any, labels: List[str]) -> Optional[str]:
+    def _canonical_label(
+        value: Any,
+        labels: List[str],
+    ) -> Optional[str]:
+
         if value is None:
             return None
+
         for label in labels:
-            if SemanticJudge._normalize_text(value) == SemanticJudge._normalize_text(label):
+
+            if (
+                SemanticJudge._normalize_text(value)
+                == SemanticJudge._normalize_text(label)
+            ):
+
                 return label
+
         return None
 
     # ==================================================================
@@ -1963,27 +1770,11 @@ Do not return additional text.
         self,
         text: str,
     ) -> Optional[Dict[str, Any]]:
-        """
-        Parse JSON from an LLM response.
-
-        Handles:
-
-            1. Plain JSON.
-            2. Markdown JSON code fences.
-            3. JSON surrounded by explanatory text.
-        """
 
         if not text:
-
             return None
 
-        text = str(
-            text
-        ).strip()
-
-        # --------------------------------------------------------------
-        # Remove Markdown code fence.
-        # --------------------------------------------------------------
+        text = str(text).strip()
 
         fenced = re.search(
             r"```(?:json)?\s*(.*?)\s*```",
@@ -1997,20 +1788,11 @@ Do not return additional text.
 
         if fenced:
 
-            text = (
-                fenced.group(1)
-                .strip()
-            )
-
-        # --------------------------------------------------------------
-        # Direct JSON parse.
-        # --------------------------------------------------------------
+            text = fenced.group(1).strip()
 
         try:
 
-            value = json.loads(
-                text
-            )
+            value = json.loads(text)
 
             if isinstance(
                 value,
@@ -2020,25 +1802,15 @@ Do not return additional text.
                 return value
 
         except Exception:
-
             pass
 
-        # --------------------------------------------------------------
-        # Locate first JSON object.
-        # --------------------------------------------------------------
-
-        start = text.find(
-            "{"
-        )
+        start = text.find("{")
 
         if start < 0:
-
             return None
 
         depth = 0
-
         in_string = False
-
         escaped = False
 
         for index in range(
@@ -2051,7 +1823,6 @@ Do not return additional text.
             if escaped:
 
                 escaped = False
-
                 continue
 
             if (
@@ -2060,19 +1831,14 @@ Do not return additional text.
             ):
 
                 escaped = True
-
                 continue
 
             if char == '"':
 
-                in_string = (
-                    not in_string
-                )
-
+                in_string = not in_string
                 continue
 
             if in_string:
-
                 continue
 
             if char == "{":
@@ -2116,22 +1882,13 @@ Do not return additional text.
     def _score(
         value,
     ) -> Optional[float]:
-        """
-        Convert a semantic score into [0, 1].
-
-        Invalid/missing values return None so Oracle can distinguish
-        them from a genuine semantic score of 0.0.
-        """
 
         if value is None:
-
             return None
 
         try:
 
-            value = float(
-                value
-            )
+            value = float(value)
 
         except (
             TypeError,
@@ -2141,7 +1898,6 @@ Do not return additional text.
             return None
 
         if value != value:
-
             return None
 
         return max(
@@ -2160,9 +1916,6 @@ Do not return additional text.
     def _normalize_claim_type(
         finding: Dict[str, Any],
     ) -> str:
-        """
-        Normalize semantic Turn-3 claim type.
-        """
 
         value = finding.get(
             "red_claim_type",
@@ -2198,12 +1951,8 @@ Do not return additional text.
     def _normalize_text(
         value,
     ) -> str:
-        """
-        Normalize strings for comparison.
-        """
 
         if value is None:
-
             return ""
 
         text = str(
@@ -2226,12 +1975,8 @@ Do not return additional text.
     def _safe_text(
         value,
     ) -> str:
-        """
-        Convert Oracle metadata into prompt-safe text.
-        """
 
         if value is None:
-
             return "unknown"
 
         if isinstance(
@@ -2246,9 +1991,7 @@ Do not return additional text.
                 value
             )
 
-        return str(
-            value
-        )
+        return str(value)
 
     # ==================================================================
     # SAFE JSON SERIALIZATION
@@ -2258,9 +2001,6 @@ Do not return additional text.
     def _safe_json(
         value,
     ) -> str:
-        """
-        Serialize metadata safely.
-        """
 
         try:
 
@@ -2273,9 +2013,7 @@ Do not return additional text.
 
         except Exception:
 
-            return str(
-                value
-            )
+            return str(value)
 
     # ==================================================================
     # GENERATOR MODEL UNWRAPPING
@@ -2285,26 +2023,6 @@ Do not return additional text.
     def _unwrap_generator_model(
         generator,
     ):
-        """
-        Obtain the underlying shared PeftModel from the current
-        Generator implementation.
-
-        Current architecture:
-
-            Generator
-                |
-                v
-            _RoleModelView
-                |
-                v
-            _shared_model
-                |
-                v
-            PeftModel
-                |
-                v
-            Base model
-        """
 
         model = generator.get_model()
 
@@ -2315,7 +2033,6 @@ Do not return additional text.
         )
 
         if shared_model is not None:
-
             return shared_model
 
         return model
@@ -2328,12 +2045,8 @@ Do not return additional text.
         self,
         message: str,
     ) -> None:
-        """
-        Write a warning to the supplied project logger.
-        """
 
         if self.logger is None:
-
             return
 
         try:
@@ -2345,7 +2058,6 @@ Do not return additional text.
             return
 
         except Exception:
-
             pass
 
         try:
@@ -2355,5 +2067,4 @@ Do not return additional text.
             )
 
         except Exception:
-
             pass

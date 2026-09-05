@@ -1271,7 +1271,7 @@ class GRPOTrainer:
             | Sequence[torch.Tensor]
         ),
         advantages: torch.Tensor,
-        normalize_advantages: bool = True,
+        normalize_advantages: bool = False,
         response_mask: Optional[
             torch.Tensor
         ] = None,

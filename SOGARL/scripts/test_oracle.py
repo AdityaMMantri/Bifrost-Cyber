@@ -32,6 +32,8 @@ from src.data.metadata_loader import MetadataLoader
 from src.data.path_resolver import PathResolver
 from src.data.code_loader import CodeLoader
 
+from src.generation.generator import Generator
+
 from src.oracle.oracle import Oracle
 from src.oracle.deterministic_checks import DeterministicChecker
 
@@ -156,6 +158,31 @@ def load_code_context(
     scenario.code_files = code_files
 
     return scenario
+
+
+# ============================================================================
+# SEMANTIC MODEL INITIALIZATION
+# ============================================================================
+
+def initialize_semantic_model() -> None:
+    """
+    Initialize the shared Generator model used by the Oracle's
+    SemanticJudge.
+
+    The Oracle reuses the shared model already initialized by
+    Generator.from_config().
+    """
+
+    print()
+    print("=" * 70)
+    print("INITIALIZING SHARED SEMANTIC MODEL")
+    print("=" * 70)
+
+    Generator.from_config(
+        role="red"
+    )
+
+    print("Semantic model initialized.")
 
 
 # ============================================================================
@@ -488,6 +515,21 @@ def run_test(
     )
 
     # ------------------------------------------------------------------------
+    # Semantic model
+    # ------------------------------------------------------------------------
+    #
+    # IMPORTANT:
+    # Turn 3 requires a complete interaction finding.
+    # Deterministic checking alone may not be able to establish
+    # real_attack_remains. The production Oracle therefore uses the
+    # SemanticJudge when the shared Generator has been initialized.
+    #
+    # Initialize the same shared Generator used by the real pipeline.
+    # ------------------------------------------------------------------------
+
+    initialize_semantic_model()
+
+    # ------------------------------------------------------------------------
     # Oracle
     # ------------------------------------------------------------------------
 
@@ -622,7 +664,7 @@ def parse_args() -> argparse.Namespace:
         description=(
             "Test the SOGARL Oracle "
             "using a real dataset scenario."
-        )
+        ),
     )
 
     parser.add_argument(
@@ -681,6 +723,4 @@ def main() -> int:
 
 if __name__ == "__main__":
 
-    sys.exit(
-        main()
-    )
+    sys.exit(main())
