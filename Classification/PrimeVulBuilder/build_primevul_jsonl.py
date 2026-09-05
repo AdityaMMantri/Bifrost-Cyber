@@ -4,7 +4,6 @@ build_primevul_jsonl.py
 Main entry point for building a PrimeVul-style JSONL dataset
 from the existing scenario-based SFT dataset.
 
-
 MODEL-VISIBLE DATA
 ------------------
 
@@ -13,6 +12,7 @@ The classification model receives ONLY:
     - system_prompt.txt
     - neutral scenario.md context
     - relevant source-code files
+    - selected noise/distractor source-code files
 
 The model does NOT receive:
 
@@ -33,9 +33,7 @@ The model does NOT receive:
 
 GROUND TRUTH
 ------------
-
 Ground truth is handled entirely on the builder side.
-
 The final PrimeVul record contains:
 
     project
@@ -48,68 +46,33 @@ The final PrimeVul record contains:
 
 `func` contains the actual model-visible prompt produced by
 PromptBuilder.
-
-IMPORTANT:
-
-Do NOT reconstruct `func` from source files after PromptBuilder.
-PromptBuilder is the single authority for the model-visible input.
 """
-
 
 from __future__ import annotations
 
+import random
 from pathlib import Path
 import sys
 import traceback
-from typing import Any, Optional
+from typing import Any,Optional
 
 import config
-
 from builders.logger import Logger
-
-from builders.models import (
-    Metadata,
-    PrimeVulRecord,
-    Scenario,
-)
-
-from builders.metadata_loader import (
-    MetadataLoader,
-)
-
-from builders.scenario_loader import (
-    ScenarioLoader,
-)
-
-from builders.red_sft_loader import (
-    RedSFTLoader,
-)
-
-from builders.path_resolver import (
-    PathResolver,
-)
-
-from builders.code_loader import (
-    CodeLoader,
-)
-
-from builders.prompt_builder import (
-    PromptBuilder,
-)
-
-from builders.jsonl_writer import (
-    JSONLWriter,
-)
-
+from builders.models import (Metadata,PrimeVulRecord,Scenario)
+from builders.metadata_loader import MetadataLoader
+from builders.scenario_loader import ScenarioLoader
+from builders.red_sft_loader import RedSFTLoader
+from builders.path_resolver import PathResolver
+from builders.code_loader import CodeLoader
+from builders.prompt_builder import PromptBuilder
+from builders.jsonl_writer import JSONLWriter
 from utils.file_utils import (
     get_scenario_directories,
     read_text,
     ensure_directory,
 )
 
-from utils.context_estimator import (
-    ContextEstimator,
-)
+from utils.context_estimator import ContextEstimator
 
 
 # ============================================================
@@ -133,7 +96,7 @@ class PrimeVulBuilder:
             -> Red SFT validation / supporting ground truth
 
         path_resolver
-            -> relevant source file paths
+            -> relevant + selected noise source file paths
 
         code_loader
             -> source code
@@ -145,158 +108,59 @@ class PrimeVulBuilder:
             -> PrimeVul JSONL serialization
     """
 
-    def __init__(
-        self,
-        logger: Optional[Logger] = None,
-    ) -> None:
-
+    def __init__(self,logger: Optional[Logger] = None) -> None:
         self.logger = logger
+        self.metadata_loader = MetadataLoader(logger=logger)
+        self.scenario_loader = ScenarioLoader(include_allowed_only=True,reject_content_leakage=True)
+        self.red_sft_loader = RedSFTLoader(logger=logger,strict_attack_consistency=True)
+        self.path_resolver = PathResolver(logger=logger)
+        self.code_loader = CodeLoader(logger=logger)
+        self.prompt_builder = PromptBuilder(system_prompt_path=(config.SYSTEM_PROMPT_FILE),prompt_template_path=(
+                config.PROMPT_TEMPLATE_FILE),logger=logger)
+        self.context_estimator = ContextEstimator(logger=logger)
+        self.writer = JSONLWriter(output_path=config.OUTPUT_FILE,logger=logger,overwrite=True)
 
-        # --------------------------------------------------------
-        # Metadata
-        # --------------------------------------------------------
-
-        self.metadata_loader = MetadataLoader(
-            logger=logger
-        )
-
-        # --------------------------------------------------------
-        # Scenario
-        # --------------------------------------------------------
-
-        self.scenario_loader = ScenarioLoader(
-            include_allowed_only=True,
-            reject_content_leakage=True,
-        )
-
-        # --------------------------------------------------------
-        # Red SFT
-        # --------------------------------------------------------
-
-        self.red_sft_loader = RedSFTLoader(
-            logger=logger,
-            strict_attack_consistency=True,
-        )
-
-        # --------------------------------------------------------
-        # Paths
-        # --------------------------------------------------------
-
-        self.path_resolver = PathResolver(
-            logger=logger
-        )
-
-        # --------------------------------------------------------
-        # Source code
-        # --------------------------------------------------------
-
-        self.code_loader = CodeLoader(
-            logger=logger
-        )
-
-        # --------------------------------------------------------
-        # Prompt
-        # --------------------------------------------------------
-
-        self.prompt_builder = PromptBuilder(
-            system_prompt_path=(
-                config.SYSTEM_PROMPT_FILE
-            ),
-            prompt_template_path=(
-                config.PROMPT_TEMPLATE_FILE
-            ),
-            logger=logger,
-        )
-
-        # --------------------------------------------------------
-        # Context estimator
-        # --------------------------------------------------------
-
-        self.context_estimator = ContextEstimator(
-            logger=logger
-        )
-
-        # --------------------------------------------------------
-        # JSONL writer
-        # --------------------------------------------------------
-
-        self.writer = JSONLWriter(
-            output_path=config.OUTPUT_FILE,
-            logger=logger,
-            overwrite=True,
-        )
-
-    # ============================================================
     # BUILD DATASET
-    # ============================================================
 
     def build(self) -> Path:
         """
         Process every scenario and write the final JSONL file.
         """
-
         self._validate_configuration()
 
-        scenario_directories = (
-            get_scenario_directories(
-                config.DATASET_ROOT
-            )
-        )
+        # --------------------------------------------------------
+        # Reproducible random noise selection.
+        #
+        # If RANDOM_SEED exists in config.py, use it.
+        # Otherwise Python's normal random state is used.
+        # --------------------------------------------------------
+
+        random_seed = getattr(config,"RANDOM_SEED",None)
+        if random_seed is not None:
+            random.seed(random_seed)
+        scenario_directories = (get_scenario_directories(config.DATASET_ROOT))
 
         if not scenario_directories:
-
-            raise RuntimeError(
-                "No scenario directories found in: "
-                f"{config.DATASET_ROOT}"
-            )
-
+            raise RuntimeError("No scenario directories found in: " f"{config.DATASET_ROOT}")
         if config.SORT_SCENARIOS:
-
-            scenario_directories = sorted(
-                scenario_directories,
-                key=lambda path: (
-                    path.name.lower()
-                ),
-            )
-
+            scenario_directories = sorted(scenario_directories,key=lambda path: (path.name.lower()))
         if self.logger:
-
-            self.logger.start_build(
-                config.DATASET_ROOT
-            )
-
-            self.logger.info(
-                f"Scenarios found: "
-                f"{len(scenario_directories)}"
-            )
-
-        records: list[
-            PrimeVulRecord
-        ] = []
-
+            self.logger.start_build(config.DATASET_ROOT)
+            self.logger.info(f"Scenarios found: "f"{len(scenario_directories)}")
+            
+        records: list[PrimeVulRecord] = []
         successful = 0
         failed = 0
-
         for scenario_path in scenario_directories:
 
             try:
 
-                record = self._process_scenario(
-                    scenario_path
-                )
-
+                record = self._process_scenario(scenario_path)
                 if record is not None:
-
-                    records.append(
-                        record
-                    )
-
+                    records.append(record)
                     successful += 1
-
             except Exception as exc:
-
                 failed += 1
-
                 error_message = (
                     f"{scenario_path.name}: "
                     f"{type(exc).__name__}: "
@@ -304,59 +168,22 @@ class PrimeVulBuilder:
                 )
 
                 if self.logger:
-
-                    self.logger.error(
-                        error_message
-                    )
-
-                    self.logger.debug(
-                        traceback.format_exc()
-                    )
-
+                    self.logger.error(error_message)
+                    self.logger.debug(traceback.format_exc())
                 if not config.CONTINUE_ON_ERROR:
-
                     raise
 
-        # --------------------------------------------------------
-        # No records
-        # --------------------------------------------------------
-
         if not records:
+            raise RuntimeError("No valid PrimeVul records were generated.")
 
-            raise RuntimeError(
-                "No valid PrimeVul records were generated."
-            )
-
-        # --------------------------------------------------------
-        # Write JSONL
-        # --------------------------------------------------------
-
-        output_path = self.writer.write(
-            records
-        )
-
-        # --------------------------------------------------------
+        output_path = self.writer.write(records)
         # Validate generated JSONL
-        # --------------------------------------------------------
-
-        validation = (
-            self.writer.validate_existing_file(
-                output_path
-            )
-        )
-
+        validation = (self.writer.validate_existing_file(output_path))
         if not validation["valid"]:
+            raise RuntimeError("Generated JSONL failed validation:\n"
+                + "\n".join(validation["errors"]))
 
-            raise RuntimeError(
-                "Generated JSONL failed validation:\n"
-                + "\n".join(
-                    validation["errors"]
-                )
-            )
-
-        # --------------------------------------------------------
         # Final statistics
-        # --------------------------------------------------------
 
         if self.logger:
 
@@ -407,7 +234,11 @@ class PrimeVulBuilder:
                 ↓
             target
                 ↓
-            relevant source files
+            relevant files
+                ↓
+            randomly selected noise files
+                ↓
+            CodeLoader
                 ↓
             PromptBuilder
                 ↓
@@ -548,25 +379,136 @@ class PrimeVulBuilder:
         )
 
         # ========================================================
-        # 5. RESOLVE RELEVANT SOURCE FILES
+        # 5. SELECT NOISE FILES
+        # ========================================================
+        #
+        # ALL relevant files are retained.
+        #
+        # From metadata.noise_files we randomly select between
+        # MIN_NOISE_FILES and MAX_NOISE_FILES.
+        #
+        # The model is NOT told which files are noise.
         # ========================================================
 
-        resolved_files = (
-            self.path_resolver.resolve_relevant_files(
-                scenario_path,
+        noise_files = list(
+            getattr(
                 metadata,
+                "noise_files",
+                [],
             )
+            or []
+        )
+
+        min_noise_files = int(
+            getattr(
+                config,
+                "MIN_NOISE_FILES",
+                2,
+            )
+        )
+
+        max_noise_files = int(
+            getattr(
+                config,
+                "MAX_NOISE_FILES",
+                5,
+            )
+        )
+
+        if min_noise_files < 0:
+
+            raise ValueError(
+                "MIN_NOISE_FILES cannot be negative."
+            )
+
+        if max_noise_files < min_noise_files:
+
+            raise ValueError(
+                "MAX_NOISE_FILES must be greater than "
+                "or equal to MIN_NOISE_FILES."
+            )
+
+        if noise_files:
+
+            noise_count = random.randint(
+                min_noise_files,
+                max_noise_files,
+            )
+
+            selected_noise_files = (
+                random.sample(
+                    noise_files,
+                    min(
+                        noise_count,
+                        len(noise_files),
+                    ),
+                )
+            )
+
+        else:
+
+            selected_noise_files = []
+
+        if self.logger:
+
+            self.logger.info(
+                f"Relevant files requested: "
+                f"{len(metadata.relevant_files)}"
+            )
+
+            self.logger.info(
+                f"Noise files available: "
+                f"{len(noise_files)}"
+            )
+
+            self.logger.info(
+                f"Noise files selected: "
+                f"{len(selected_noise_files)}"
+            )
+
+            if selected_noise_files:
+
+                self.logger.info(
+                    "Selected noise files: "
+                    + ", ".join(
+                        selected_noise_files
+                    )
+                )
+
+        # ========================================================
+        # 6. RESOLVE RELEVANT + NOISE SOURCE FILES
+        # ========================================================
+
+        resolved_relevant_files = (
+            self.path_resolver.resolve_files(
+                scenario_path,
+                metadata.relevant_files,
+                file_type="relevant",
+            )
+        )
+
+        resolved_noise_files = (
+            self.path_resolver.resolve_files(
+                scenario_path,
+                selected_noise_files,
+                file_type="noise",
+            )
+        )
+
+        resolved_files = (
+            resolved_relevant_files
+            + resolved_noise_files
         )
 
         if not resolved_files:
 
             raise ValueError(
-                f"No relevant source files resolved "
+                f"No source files resolved "
                 f"for scenario '{scenario_name}'."
             )
 
         # ========================================================
-        # 6. LOAD SOURCE CODE
+        # 7. LOAD SOURCE CODE
         # ========================================================
 
         code_files = (
@@ -578,7 +520,7 @@ class PrimeVulBuilder:
         if not code_files:
 
             raise ValueError(
-                f"No relevant source-code files were "
+                f"No source-code files were "
                 f"loaded for scenario '{scenario_name}'."
             )
 
@@ -588,8 +530,38 @@ class PrimeVulBuilder:
                 len(code_files)
             )
 
+            relevant_count = sum(
+                1
+                for code_file in code_files
+                if getattr(
+                    code_file,
+                    "file_type",
+                    "",
+                ) == "relevant"
+            )
+
+            noise_count_loaded = sum(
+                1
+                for code_file in code_files
+                if getattr(
+                    code_file,
+                    "file_type",
+                    "",
+                ) == "noise"
+            )
+
+            self.logger.info(
+                f"Relevant files in prompt: "
+                f"{relevant_count}"
+            )
+
+            self.logger.info(
+                f"Noise files in prompt: "
+                f"{noise_count_loaded}"
+            )
+
         # ========================================================
-        # 7. BUILD COMPLETE MODEL-VISIBLE PROMPT
+        # 8. BUILD COMPLETE MODEL-VISIBLE PROMPT
         # ========================================================
 
         prompt = (
@@ -629,7 +601,7 @@ class PrimeVulBuilder:
             )
 
         # ========================================================
-        # 8. ESTIMATE CONTEXT SIZE
+        # 9. ESTIMATE CONTEXT SIZE
         # ========================================================
 
         statistics: dict[str, Any] = {}
@@ -664,7 +636,7 @@ class PrimeVulBuilder:
                     )
 
         # ========================================================
-        # 9. SAVE EXACT MODEL-VISIBLE DEBUG PROMPT
+        # 10. SAVE EXACT MODEL-VISIBLE DEBUG PROMPT
         # ========================================================
 
         if config.SAVE_DEBUG_PROMPTS:
@@ -676,7 +648,7 @@ class PrimeVulBuilder:
             )
 
         # ========================================================
-        # 10. CREATE PRIMEVUL RECORD
+        # 11. CREATE PRIMEVUL RECORD
         # ========================================================
 
         record = self._create_record(
@@ -690,8 +662,14 @@ class PrimeVulBuilder:
 
             self.logger.scenario_summary(
                 scenario_name=scenario_name,
-                relevant_files=len(
-                    code_files
+                relevant_files=sum(
+                    1
+                    for code_file in code_files
+                    if getattr(
+                        code_file,
+                        "file_type",
+                        "",
+                    ) == "relevant"
                 ),
                 target=target,
                 cwe=self._format_cwe(
@@ -902,18 +880,6 @@ class PrimeVulBuilder:
         # --------------------------------------------------------
         # DO NOT infer from Red SFT.
         # --------------------------------------------------------
-
-        # This variable is intentionally unused here.
-        #
-        # Red SFT is useful for consistency validation, but:
-        #
-        #     red_sft exists
-        #          !=
-        #     vulnerable
-        #
-        # A safe scenario may legitimately have a Red SFT
-        # representation whose attack label is
-        # no_exploitable_vulnerability.
 
         _ = red_examples
 
@@ -1206,13 +1172,7 @@ class PrimeVulBuilder:
     # CREATE PRIMEVUL RECORD
     # ============================================================
 
-    def _create_record(
-        self,
-        scenario_path: Path,
-        metadata: Metadata,
-        target: int,
-        prompt,
-    ) -> PrimeVulRecord:
+    def _create_record(self,scenario_path: Path,metadata: Metadata,target: int,prompt) -> PrimeVulRecord:
         """
         Create the final PrimeVul-style record.
 
@@ -1229,26 +1189,12 @@ class PrimeVulBuilder:
 
         if prompt is None:
 
-            raise ValueError(
-                f"Prompt is missing for "
-                f"{scenario_path.name}"
-            )
-
-        func = getattr(
-            prompt,
-            "prompt",
-            None,
-        )
-
-        if not isinstance(
-            func,
-            str,
-        ) or not func.strip():
-
+            raise ValueError(f"Prompt is missing for "f"{scenario_path.name}")
+        func = getattr(prompt,"prompt",None)
+        if not isinstance(func,str) or not func.strip():
             raise ValueError(
                 f"PromptBuilder produced an empty "
-                f"model input for {scenario_path.name}"
-            )
+                f"model input for {scenario_path.name}")
 
         # --------------------------------------------------------
         # CWE is metadata, not prompt content.
@@ -1263,9 +1209,7 @@ class PrimeVulBuilder:
         # --------------------------------------------------------
         # IMPORTANT:
         #
-        # Do NOT copy metadata.description into cve_desc.
-        #
-        # Your custom vulnerability descriptions can contain
+        # custom vulnerability descriptions can contain
         # the exact answer and therefore must not become part of
         # any model-visible field.
         #
@@ -1321,13 +1265,7 @@ class PrimeVulBuilder:
     # ============================================================
     # SAVE DEBUG PROMPT
     # ============================================================
-
-    def _save_debug_prompt(
-        self,
-        scenario_name: str,
-        prompt,
-        statistics: dict[str, Any],
-    ) -> None:
+    def _save_debug_prompt(self,scenario_name: str,prompt,statistics: dict[str, Any]) -> None:
         """
         Save the exact model-visible prompt.
 
@@ -1341,35 +1279,12 @@ class PrimeVulBuilder:
 
         It does NOT contain metadata.json or Red SFT data.
         """
-
-        debug_directory = ensure_directory(
-            config.DEBUG_DIR
-        )
-
-        safe_name = self._safe_name(
-            scenario_name
-        )
-
-        prompt_path = (
-            debug_directory
-            / f"{safe_name}.txt"
-        )
-
-        model_prompt = getattr(
-            prompt,
-            "prompt",
-            None,
-        )
-
-        if not isinstance(
-            model_prompt,
-            str,
-        ):
-
-            raise ValueError(
-                f"Cannot save debug prompt for "
-                f"{scenario_name}: invalid prompt."
-            )
+        debug_directory = ensure_directory(config.DEBUG_DIR)
+        safe_name = self._safe_name(scenario_name)
+        prompt_path = (debug_directory/ f"{safe_name}.txt")
+        model_prompt = getattr(prompt,"prompt",None)
+        if not isinstance(model_prompt,str):
+            raise ValueError(f"Cannot save debug prompt for "f"{scenario_name}: invalid prompt.")
 
         content = (
             "==================================================\n"
@@ -1388,259 +1303,102 @@ class PrimeVulBuilder:
             f"{statistics}\n"
         )
 
-        prompt_path.write_text(
-            content,
-            encoding="utf-8",
-        )
-
+        prompt_path.write_text(content,encoding="utf-8")
         if self.logger:
-
-            self.logger.info(
-                f"Saved debug prompt: "
-                f"{prompt_path}"
-            )
+            self.logger.info(f"Saved debug prompt: "f"{prompt_path}")
 
     # ============================================================
     # SAFE DEBUG FILENAME
     # ============================================================
 
     @staticmethod
-    def _safe_name(
-        value: str,
-    ) -> str:
+    def _safe_name(value: str) -> str:
         """
         Make a safe filesystem name.
         """
-
-        unsafe = (
-            '\\/:*?"<>|'
-        )
-
+        unsafe = ('\\/:*?"<>|')
         result = value
-
         for character in unsafe:
-
-            result = result.replace(
-                character,
-                "_",
-            )
-
+            result = result.replace(character,"_")
         return result.strip()
 
     # ============================================================
     # CWE FORMATTER
     # ============================================================
-
     @staticmethod
-    def _format_cwe(
-        cwe: Any,
-    ) -> Optional[str]:
+    def _format_cwe(cwe: Any) -> Optional[str]:
         """
         Format CWE metadata for logging only.
         """
 
         if cwe is None:
-
             return None
 
-        if isinstance(
-            cwe,
-            list,
-        ):
-
-            values = [
-                str(item)
-                for item in cwe
-                if item is not None
-            ]
-
-            return ", ".join(
-                values
-            ) or None
-
+        if isinstance(cwe,list):
+            values = [str(item) for item in cwe if item is not None]
+            return ", ".join(values) or None
         return str(cwe)
 
     # ============================================================
     # CONFIGURATION VALIDATION
     # ============================================================
 
-    def _validate_configuration(
-        self,
-    ) -> None:
+    def _validate_configuration(self) -> None:
         """
         Validate required paths before starting the build.
         """
 
-        # --------------------------------------------------------
-        # Dataset
-        # --------------------------------------------------------
-
         if not config.DATASET_ROOT.exists():
-
-            raise FileNotFoundError(
-                "DATASET_ROOT does not exist: "
-                f"{config.DATASET_ROOT}"
-            )
-
+            raise FileNotFoundError("DATASET_ROOT does not exist: "f"{config.DATASET_ROOT}")
         if not config.DATASET_ROOT.is_dir():
-
-            raise ValueError(
-                "DATASET_ROOT is not a directory: "
-                f"{config.DATASET_ROOT}"
-            )
-
-        # --------------------------------------------------------
+            raise ValueError("DATASET_ROOT is not a directory: "f"{config.DATASET_ROOT}")
+        
         # System prompt
-        # --------------------------------------------------------
-
         if not config.SYSTEM_PROMPT_FILE.exists():
-
-            raise FileNotFoundError(
-                "System prompt not found: "
-                f"{config.SYSTEM_PROMPT_FILE}"
-            )
-
-        # --------------------------------------------------------
+            raise FileNotFoundError("System prompt not found: "f"{config.SYSTEM_PROMPT_FILE}")
         # Prompt template
-        # --------------------------------------------------------
-
         if not config.PROMPT_TEMPLATE_FILE.exists():
-
-            raise FileNotFoundError(
-                "Prompt template not found: "
-                f"{config.PROMPT_TEMPLATE_FILE}"
-            )
-
-        # --------------------------------------------------------
+            raise FileNotFoundError("Prompt template not found: "f"{config.PROMPT_TEMPLATE_FILE}")
         # Prompt template validation
-        # --------------------------------------------------------
-
-        template = read_text(
-            config.PROMPT_TEMPLATE_FILE
-        )
-
+        template = read_text(config.PROMPT_TEMPLATE_FILE)
         required_placeholders = {
             "{{SCENARIO}}",
             "{{SOURCE_CODE}}",
         }
 
-        missing = [
-            placeholder
-            for placeholder in (
-                required_placeholders
-            )
-            if placeholder not in template
-        ]
-
+        missing = [placeholder for placeholder in (required_placeholders) if placeholder not in template]
         if missing:
-
-            raise ValueError(
-                "Prompt template is missing required "
-                f"placeholder(s): {missing}"
-            )
-
-        # --------------------------------------------------------
+            raise ValueError("Prompt template is missing required "f"placeholder(s): {missing}")
         # Output directory
-        # --------------------------------------------------------
-
-        ensure_directory(
-            config.OUTPUT_DIR
-        )
-
-        # --------------------------------------------------------
+        ensure_directory(config.OUTPUT_DIR)
         # Debug directory
-        # --------------------------------------------------------
-
         if config.SAVE_DEBUG_PROMPTS:
-
-            ensure_directory(
-                config.DEBUG_DIR
-            )
-
-        # --------------------------------------------------------
+            ensure_directory(config.DEBUG_DIR)
         # Log directory
-        # --------------------------------------------------------
-
-        log_file = getattr(
-            config,
-            "LOG_FILE",
-            None,
-        )
-
+        log_file = getattr(config,"LOG_FILE",None)
         if log_file is not None:
-
-            Path(log_file).parent.mkdir(
-                parents=True,
-                exist_ok=True,
-            )
-
-
-# ============================================================
-# MAIN
-# ============================================================
+            Path(log_file).parent.mkdir(parents=True,exist_ok=True)
 
 
 def main() -> int:
-    """
-    Command-line entry point.
-    """
-
-    # IMPORTANT:
-    #
-    # Previously this was:
-    #
-    #     Logger()
-    #
-    # which meant config.LOG_FILE was never used.
-    #
-    # This is why output/logs/build.log was not being created.
-
-    logger = Logger(
-        name="PrimeVulBuilder",
-        log_file=config.LOG_FILE,
-    )
-
+    logger = Logger(name="PrimeVulBuilder",log_file=config.LOG_FILE)
     try:
-
-        builder = PrimeVulBuilder(
-            logger=logger
-        )
-
+        builder = PrimeVulBuilder(logger=logger)
         output_path = builder.build()
-
-        print(
-            "\nPrimeVul dataset created:"
-        )
-
-        print(
-            output_path
-        )
-
+        print("\nPrimeVul dataset created:")
+        print(output_path)
         return 0
 
     except KeyboardInterrupt:
-
-        logger.warning(
-            "Build interrupted by user."
-        )
-
+        logger.warning("Build interrupted by user.")
         return 130
-
+    
     except Exception as exc:
-
-        logger.error(
-            f"Build failed: {exc}"
-        )
-
-        logger.debug(
-            traceback.format_exc()
-        )
+        logger.error(f"Build failed: {exc}")
+        logger.debug(traceback.format_exc())
 
         return 1
 
 
 if __name__ == "__main__":
-
-    sys.exit(
-        main()
-    )
+    sys.exit(main())

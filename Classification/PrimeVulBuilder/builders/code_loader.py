@@ -1,9 +1,6 @@
 from __future__ import annotations
-
 from pathlib import Path
-
 from .models import CodeFile, ResolvedFile
-
 
 class CodeLoader:
     """
@@ -17,22 +14,11 @@ class CodeLoader:
     Every ResolvedFile supplied here is loaded.
     """
 
-    def __init__(
-        self,
-        logger=None,
-        max_file_size: int | None = None,
-    ):
+    def __init__(self,logger=None,max_file_size: int | None = None):
         self.logger = logger
         self.max_file_size = max_file_size
 
-    # ============================================================
-    # PUBLIC API
-    # ============================================================
-
-    def load(
-        self,
-        resolved_files: list[ResolvedFile],
-    ) -> list[CodeFile]:
+    def load(self,resolved_files: list[ResolvedFile]) -> list[CodeFile]:
         """
         Load every resolved file.
 
@@ -41,18 +27,13 @@ class CodeLoader:
 
         return self.load_files(resolved_files)
 
-    def load_files(
-        self,
-        resolved_files: list[ResolvedFile],
-    ) -> list[CodeFile]:
+    def load_files(self,resolved_files: list[ResolvedFile]) -> list[CodeFile]:
         """
         Load all files supplied by PathResolver.
         """
 
         if not resolved_files:
-            raise ValueError(
-                "No resolved files were provided to CodeLoader."
-            )
+            raise ValueError("No resolved files were provided to CodeLoader.")
 
         code_files: list[CodeFile] = []
 
@@ -61,9 +42,7 @@ class CodeLoader:
             code_files.append(code_file)
 
         if self.logger:
-            self.logger.info(
-                f"Loaded {len(code_files)} source file(s)"
-            )
+            self.logger.info(f"Loaded {len(code_files)} source file(s)")
 
         return code_files
 
@@ -71,10 +50,7 @@ class CodeLoader:
     # SINGLE FILE
     # ============================================================
 
-    def load_file(
-        self,
-        resolved_file: ResolvedFile,
-    ) -> CodeFile:
+    def load_file(self,resolved_file: ResolvedFile) -> CodeFile:
         """
         Load one resolved file.
 
@@ -82,32 +58,17 @@ class CodeLoader:
         """
 
         if resolved_file is None:
-            raise ValueError(
-                "ResolvedFile cannot be None."
-            )
-
-        path = Path(
-            resolved_file.absolute_path
-        )
-
+            raise ValueError("ResolvedFile cannot be None.")
+        path = Path(resolved_file.absolute_path)
         if not path.exists():
-            raise FileNotFoundError(
-                f"Source file does not exist: {path}"
-            )
-
+            raise FileNotFoundError(f"Source file does not exist: {path}")
         if not path.is_file():
-            raise ValueError(
-                f"Source path is not a file: {path}"
-            )
+            raise ValueError(f"Source path is not a file: {path}")
 
-        # --------------------------------------------------------
         # Optional size guard
-        # --------------------------------------------------------
 
         if self.max_file_size is not None:
-
             size = path.stat().st_size
-
             if size > self.max_file_size:
                 raise ValueError(
                     f"Source file exceeds configured size limit: "
@@ -116,37 +77,11 @@ class CodeLoader:
                     f"{self.max_file_size:,} bytes)"
                 )
 
-        # --------------------------------------------------------
         # Read file
-        # --------------------------------------------------------
-
         content = self._read_text(path)
-
-        # --------------------------------------------------------
         # Statistics
-        # --------------------------------------------------------
-
-        line_count = (
-            len(content.splitlines())
-            if content
-            else 0
-        )
-
+        line_count = (len(content.splitlines()) if content else 0)
         character_count = len(content)
-
-        # --------------------------------------------------------
-        # IMPORTANT:
-        #
-        # Do NOT determine file type from extension.
-        #
-        # PathResolver already assigned:
-        #
-        #     relevant
-        #     noise
-        #
-        # Preserve that value.
-        # --------------------------------------------------------
-
         file_type = resolved_file.file_type
 
         code_file = CodeFile(
@@ -173,10 +108,7 @@ class CodeLoader:
     # TEXT READING
     # ============================================================
 
-    def _read_text(
-        self,
-        path: Path,
-    ) -> str:
+    def _read_text(self,path: Path) -> str:
         """
         Read a codebase file as text.
 
@@ -184,23 +116,15 @@ class CodeLoader:
         """
 
         try:
-            return path.read_text(
-                encoding="utf-8"
-            )
-
+            return path.read_text(encoding="utf-8")
         except UnicodeDecodeError:
-
             if self.logger:
                 self.logger.warning(
                     f"UTF-8 decoding failed for {path}; "
                     f"retrying with latin-1."
                 )
-
             try:
-                return path.read_text(
-                    encoding="latin-1"
-                )
-
+                return path.read_text(encoding="latin-1")
             except OSError as exc:
                 raise OSError(
                     f"Could not read source file: "
@@ -217,10 +141,7 @@ class CodeLoader:
     # CODE FORMATTING
     # ============================================================
 
-    def format_code_files(
-        self,
-        code_files: list[CodeFile],
-    ) -> str:
+    def format_code_files(self,code_files: list[CodeFile]) -> str:
         """
         Combine all loaded files into the source-code block.
 
@@ -230,14 +151,9 @@ class CodeLoader:
         """
 
         if not code_files:
-            raise ValueError(
-                "Cannot format an empty code-file list."
-            )
-
+            raise ValueError("Cannot format an empty code-file list.")
         blocks: list[str] = []
-
         for code_file in code_files:
-
             blocks.append(
                 f"## FILE: "
                 f"{code_file.relative_path}\n\n"
@@ -250,44 +166,20 @@ class CodeLoader:
     # STATISTICS
     # ============================================================
 
-    def total_characters(
-        self,
-        code_files: list[CodeFile],
-    ) -> int:
-        return sum(
-            code_file.character_count
-            for code_file in code_files
-        )
-
-    def total_lines(
-        self,
-        code_files: list[CodeFile],
-    ) -> int:
-        return sum(
-            code_file.line_count
-            for code_file in code_files
-        )
-
-    def total_files(
-        self,
-        code_files: list[CodeFile],
-    ) -> int:
+    def total_characters(self,code_files: list[CodeFile]) -> int:
+        return sum(code_file.character_count for code_file in code_files)
+    def total_lines(self,code_files: list[CodeFile]) -> int:
+        return sum(code_file.line_count for code_file in code_files)
+    def total_files(self,code_files: list[CodeFile]) -> int:
         return len(code_files)
-
-    def total_relevant_files(
-        self,
-        code_files: list[CodeFile],
-    ) -> int:
+    def total_relevant_files(self,code_files: list[CodeFile]) -> int:
         return sum(
             1
             for code_file in code_files
             if code_file.file_type == "relevant"
         )
 
-    def total_noise_files(
-        self,
-        code_files: list[CodeFile],
-    ) -> int:
+    def total_noise_files(self,code_files: list[CodeFile]) -> int:
         return sum(
             1
             for code_file in code_files
@@ -298,10 +190,7 @@ class CodeLoader:
     # VALIDATION
     # ============================================================
 
-    def validate_code_files(
-        self,
-        code_files: list[CodeFile],
-    ) -> None:
+    def validate_code_files(self,code_files: list[CodeFile]) -> None:
         """
         Validate loaded files.
 
@@ -309,23 +198,12 @@ class CodeLoader:
         """
 
         if not code_files:
-            raise ValueError(
-                "No code files were loaded."
-            )
-
+            raise ValueError("No code files were loaded.")
         seen_paths: set[str] = set()
-
         for code_file in code_files:
-
             if not code_file.relative_path:
-                raise ValueError(
-                    "CodeFile has an empty relative path."
-                )
-
-            if not isinstance(
-                code_file.content,
-                str,
-            ):
+                raise ValueError("CodeFile has an empty relative path.")
+            if not isinstance(code_file.content,str):
                 raise ValueError(
                     f"CodeFile content must be a string: "
                     f"{code_file.relative_path}"
@@ -337,12 +215,7 @@ class CodeLoader:
                     f"{code_file.relative_path}"
                 )
 
-            canonical = str(
-                Path(
-                    code_file.absolute_path
-                ).resolve()
-            ).lower()
-
+            canonical = str(Path(code_file.absolute_path).resolve()).lower()
             if canonical in seen_paths:
                 raise ValueError(
                     f"Duplicate source file loaded: "
@@ -355,10 +228,7 @@ class CodeLoader:
     # DEBUGGING
     # ============================================================
 
-    def describe(
-        self,
-        code_files: list[CodeFile],
-    ) -> str:
+    def describe(self,code_files: list[CodeFile]) -> str:
         """
         Return a readable summary of loaded files.
         """
@@ -368,10 +238,7 @@ class CodeLoader:
 
         lines: list[str] = []
 
-        for index, code_file in enumerate(
-            code_files,
-            start=1,
-        ):
+        for index, code_file in enumerate(code_files,start=1):
             lines.append(
                 f"{index}. "
                 f"[{code_file.file_type}] "

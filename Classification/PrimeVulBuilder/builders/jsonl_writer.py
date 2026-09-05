@@ -3,7 +3,6 @@ from __future__ import annotations
 import json
 from pathlib import Path
 from typing import Any
-
 from .models import PrimeVulRecord
 
 
@@ -73,26 +72,12 @@ class JSONLWriter:
     # CONSTRUCTOR
     # ============================================================
 
-    def __init__(
-        self,
-        output_path: Path,
-        logger=None,
-        overwrite: bool = True,
-    ):
+    def __init__(self,output_path: Path,logger=None,overwrite: bool = True):
         self.output_path = Path(output_path)
-
         self.logger = logger
-
         self.overwrite = overwrite
 
-    # ============================================================
-    # PUBLIC API
-    # ============================================================
-
-    def write(
-        self,
-        records: list[PrimeVulRecord],
-    ) -> Path:
+    def write(self,records: list[PrimeVulRecord]) -> Path:
         """
         Write all records to JSONL.
 
@@ -100,60 +85,23 @@ class JSONLWriter:
         """
 
         if not records:
-            raise ValueError(
-                "Cannot write an empty JSONL dataset."
-            )
-
+            raise ValueError("Cannot write an empty JSONL dataset.")
         self._prepare_output_path()
-
         validated_records: list[dict[str, Any]] = []
-
-        for index, record in enumerate(
-            records,
-            start=1,
-        ):
-            self._validate_record(
-                record,
-                index,
-            )
-
-            validated_records.append(
-                self._record_to_dict(
-                    record
-                )
-            )
-
+        for index, record in enumerate(records,start=1):
+            self._validate_record(record,index)
+            validated_records.append(self._record_to_dict(record))
         try:
 
-            with self.output_path.open(
-                "w",
-                encoding="utf-8",
-                newline="\n",
-            ) as file:
-
+            with self.output_path.open("w",encoding="utf-8",newline="\n") as file:
                 for record in validated_records:
-
-                    json.dump(
-                        record,
-                        file,
-                        ensure_ascii=False,
-                        separators=(
-                            ",",
-                            ":",
-                        ),
-                    )
-
+                    json.dump(record,file,ensure_ascii=False,separators=(",",":",))
                     file.write("\n")
 
         except OSError as exc:
-
-            raise OSError(
-                f"Could not write JSONL file: "
-                f"{self.output_path}\n{exc}"
-            ) from exc
+            raise OSError(f"Could not write JSONL file: "f"{self.output_path}\n{exc}") from exc
 
         if self.logger:
-
             self.logger.info(
                 f"Wrote "
                 f"{len(validated_records)} "
@@ -167,67 +115,29 @@ class JSONLWriter:
     # SINGLE RECORD
     # ============================================================
 
-    def write_record(
-        self,
-        record: PrimeVulRecord,
-    ) -> Path:
+    def write_record(self,record: PrimeVulRecord) -> Path:
         """
         Append one record to the JSONL file.
 
         This does not alter the record.
         """
 
-        self._validate_record(
-            record,
-            1,
-        )
-
-        self.output_path.parent.mkdir(
-            parents=True,
-            exist_ok=True,
-        )
-
-        record_dict = self._record_to_dict(
-            record
-        )
-
+        self._validate_record(record,1)
+        self.output_path.parent.mkdir(parents=True,exist_ok=True)
+        record_dict = self._record_to_dict(record)
         try:
-
-            with self.output_path.open(
-                "a",
-                encoding="utf-8",
-                newline="\n",
-            ) as file:
-
-                json.dump(
-                    record_dict,
-                    file,
-                    ensure_ascii=False,
-                    separators=(
-                        ",",
-                        ":",
-                    ),
-                )
-
+            with self.output_path.open("a",encoding="utf-8",newline="\n") as file:
+                json.dump(record_dict,file,ensure_ascii=False,separators=(",",":"))
                 file.write("\n")
-
         except OSError as exc:
-
-            raise OSError(
-                f"Could not append to JSONL file: "
-                f"{self.output_path}\n{exc}"
-            ) from exc
-
+            raise OSError(f"Could not append to JSONL file: "f"{self.output_path}\n{exc}") from exc
         return self.output_path
 
     # ============================================================
     # PRIMEVUL SERIALIZATION
     # ============================================================
 
-    def _record_to_dict(
-        self,
-        record: PrimeVulRecord,
-    ) -> dict[str, Any]:
+    def _record_to_dict(self,record: PrimeVulRecord) -> dict[str, Any]:
         """
         Convert PrimeVulRecord to the exact PrimeVul-style
         JSONL schema.
@@ -267,55 +177,30 @@ class JSONLWriter:
     # RECORD VALIDATION
     # ============================================================
 
-    def _validate_record(
-        self,
-        record: PrimeVulRecord,
-        index: int,
-    ) -> None:
+    def _validate_record(self,record: PrimeVulRecord,index: int) -> None:
         """
         Validate one PrimeVulRecord before serialization.
         """
 
-        if not isinstance(
-            record,
-            PrimeVulRecord,
-        ):
-
+        if not isinstance(record,PrimeVulRecord):
             raise TypeError(
                 f"Record {index} is not a "
                 f"PrimeVulRecord object."
             )
 
-        # --------------------------------------------------------
-        # Project
-        # --------------------------------------------------------
-
-        if not isinstance(
-            record.project,
-            str,
-        ):
-
+        if not isinstance(record.project,str):
             raise ValueError(
                 f"Record {index}: "
                 f"'project' must be a string."
             )
 
         if not record.project.strip():
-
             raise ValueError(
                 f"Record {index}: "
                 f"'project' cannot be empty."
             )
 
-        # --------------------------------------------------------
-        # Target
-        # --------------------------------------------------------
-
-        if record.target not in (
-            0,
-            1,
-        ):
-
+        if record.target not in (0,1):
             raise ValueError(
                 f"Record {index}: "
                 f"'target' must be 0 or 1, "
@@ -326,22 +211,14 @@ class JSONLWriter:
         # FUNC
         # --------------------------------------------------------
 
-        if not isinstance(
-            record.func,
-            str,
-        ):
-
+        if not isinstance(record.func,str):
             raise ValueError(
                 f"Record {index}: "
-                f"'func' must be a string."
-            )
-
+                f"'func' must be a string.")
         if not record.func.strip():
-
             raise ValueError(
                 f"Record {index}: "
-                f"'func' cannot be empty."
-            )
+                f"'func' cannot be empty.")
 
         # --------------------------------------------------------
         # Commit ID
@@ -786,32 +663,18 @@ class JSONLWriter:
     # STATISTICS
     # ============================================================
 
-    def count_records(
-        self,
-        path: Path | None = None,
-    ) -> int:
+    def count_records(self,path: Path | None = None,) -> int:
         """
         Count non-empty JSONL records.
         """
 
-        path = (
-            Path(path)
-            if path is not None
-            else self.output_path
-        )
-
+        path = (Path(path) if path is not None else self.output_path)
         if not path.exists():
             return 0
-
         count = 0
 
-        with path.open(
-            "r",
-            encoding="utf-8",
-        ) as file:
-
+        with path.open("r",encoding="utf-8") as file:
             for line in file:
-
                 if line.strip():
                     count += 1
 

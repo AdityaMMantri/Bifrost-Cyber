@@ -2,7 +2,6 @@ import json
 import re
 from pathlib import Path
 from typing import Any, Optional
-
 from .models import RedSFTExample
 
 
@@ -114,11 +113,7 @@ class RedSFTLoader:
     # INITIALIZATION
     # ============================================================
 
-    def __init__(
-        self,
-        logger=None,
-        strict_attack_consistency: bool = False,
-    ):
+    def __init__(self,logger=None,strict_attack_consistency: bool = False):
         """
         Parameters
         ----------
@@ -147,33 +142,23 @@ class RedSFTLoader:
         """
 
         self.logger = logger
-
-        self.strict_attack_consistency = (
-            strict_attack_consistency
-        )
+        self.strict_attack_consistency = (strict_attack_consistency)
 
     # ============================================================
     # PUBLIC API
     # ============================================================
 
-    def load(
-        self,
-        red_sft_path: Path,
-    ) -> list[RedSFTExample]:
+    def load(self,red_sft_path: Path) -> list[RedSFTExample]:
         """
         Load and validate all Red SFT examples from red_sft.json.
         """
 
-        red_sft_path = Path(
-            red_sft_path
-        )
-
+        red_sft_path = Path(red_sft_path)
         if not red_sft_path.exists():
             raise FileNotFoundError(
                 f"red_sft.json not found: "
                 f"{red_sft_path}"
             )
-
         if not red_sft_path.is_file():
             raise ValueError(
                 f"red_sft path is not a file: "
@@ -216,10 +201,7 @@ class RedSFTLoader:
     # JSON READING
     # ============================================================
 
-    def _read_json(
-        self,
-        path: Path,
-    ) -> Any:
+    def _read_json(self,path: Path) -> Any:
         """
         Read red_sft.json as JSON.
         """
