@@ -36,10 +36,13 @@ This module does NOT:
 """
 
 from __future__ import annotations
+
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional
+
 from configs import config
 from src.oracle.interaction_checker import InteractionChecker
+
 
 # ============================================================================
 # RESULT OBJECTS
@@ -61,16 +64,23 @@ class OracleScore:
     """
 
     reward: float
+
     attack_label_score: float = 0.0
     root_cause_score: float = 0.0
     relevant_files_score: float = 0.0
     reasoning_score: float = 0.0
     format_score: float = 0.0
+
     deterministic_score: Optional[float] = None
     semantic_score: Optional[float] = None
-    metadata: Dict[str, Any] = field(default_factory=dict)
 
-    def to_dict(self) -> Dict[str, Any]:
+    metadata: Dict[str, Any] = field(
+        default_factory=dict
+    )
+
+    def to_dict(
+        self,
+    ) -> Dict[str, Any]:
 
         return {
             "reward": self.reward,
@@ -98,13 +108,23 @@ class InteractionResult:
     case_id: int
     red_claim_type: str
     ground_truth_state: str
+
     attack_claim: Optional[str] = None
     verified_attack: Optional[str] = None
-    remaining_attacks: List[str] = field(default_factory=list)
-    explanation: str = ""
-    metadata: Dict[str, Any] = field(default_factory=dict)
 
-    def to_dict(self) -> Dict[str, Any]:
+    remaining_attacks: List[str] = field(
+        default_factory=list
+    )
+
+    explanation: str = ""
+
+    metadata: Dict[str, Any] = field(
+        default_factory=dict
+    )
+
+    def to_dict(
+        self,
+    ) -> Dict[str, Any]:
 
         return {
             "red_reward": self.red_reward,
@@ -139,33 +159,90 @@ class Oracle:
         adversarial defense verification
 
     Deterministic checks are preferred whenever possible.
+
     Semantic judging is used for properties that cannot reliably
     be determined with deterministic rules.
+
+    SemanticJudge initialization supports both model architectures:
+
+        1. Explicitly injected SemanticJudge
+           Works with shared and independent policy backbones.
+
+        2. Legacy automatic shared-backbone discovery
+           Retained only for backward compatibility.
+
+    Oracle itself never loads another large base model.
     """
 
-    def __init__(self,deterministic_checker=None,semantic_judge=None,logger=None):
-        self.deterministic_checker = (deterministic_checker)
+    def __init__(
+        self,
+        deterministic_checker=None,
+        semantic_judge=None,
+        logger=None,
+    ):
+
+        self.deterministic_checker = (
+            deterministic_checker
+        )
+
         self.logger = logger
-        self.semantic_judge = (semantic_judge)
+
+        # --------------------------------------------------------------
+        # IMPORTANT:
+        #
+        # Explicit dependency injection is authoritative.
+        #
+        # This is the mode-independent path:
+        #
+        #   SemanticJudge(
+        #       base_generator=red_generator
+        #   )
+        #
+        # works regardless of whether Red uses:
+        #
+        #   shared backbone
+        #
+        # or:
+        #
+        #   independent backbone
+        # --------------------------------------------------------------
+
+        self.semantic_judge = (
+            semantic_judge
+        )
 
         # --------------------------------------------------------------
         # Turn-3 interaction mapper.
         #
-        # InteractionChecker is the single authority for mapping a
-        # verified factual Turn-3 state into Case 1-5 rewards.
+        # InteractionChecker remains the single authority for mapping
+        # verified factual Turn-3 states into Case 1-5 rewards.
         #
-        # This does not change Oracle's public API. Oracle continues
-        # returning InteractionResult.
+        # Public Oracle output remains InteractionResult.
         # --------------------------------------------------------------
-        self.interaction_checker = (InteractionChecker(logger=logger))
+
+        self.interaction_checker = (
+            InteractionChecker(
+                logger=logger
+            )
+        )
+
         # --------------------------------------------------------------
-        # Semantic Oracle
+        # Semantic Oracle compatibility fallback.
         #
-        # Prefer an explicitly injected SemanticJudge.
+        # This block exists ONLY for old/shared-backbone callers which
+        # construct:
         #
-        # If no judge was injected, retain a compatibility fallback that
-        # reuses the already-loaded shared Generator model. It never
-        # loads a second base model.
+        #     Oracle(...)
+        #
+        # without explicitly supplying semantic_judge.
+        #
+        # In independent-backbone mode Generator._shared_model does not
+        # exist by design. That is NOT an error.
+        #
+        # Independent mode should construct SemanticJudge from an
+        # already-loaded policy Generator and inject it into Oracle.
+        #
+        # Oracle must never load an extra 8B model automatically.
         # --------------------------------------------------------------
 
         if (
@@ -201,6 +278,10 @@ class Oracle:
                     None,
                 )
 
+                # ------------------------------------------------------
+                # Legacy shared-backbone discovery.
+                # ------------------------------------------------------
+
                 if (
                     shared_model is not None
                     and shared_tokenizer is not None
@@ -220,22 +301,74 @@ class Oracle:
 
                         logger.info(
                             "Semantic Oracle initialized using "
-                            "the shared base model."
+                            "the already-loaded shared policy backbone."
                         )
+
+                # ------------------------------------------------------
+                # Independent mode:
+                #
+                # Absence of Generator._shared_model is expected.
+                #
+                # Do NOT:
+                #
+                #   - load another model
+                #   - throw an initialization exception
+                #   - assume Generator is broken
+                #
+                # The caller should inject:
+                #
+                #   SemanticJudge(
+                #       base_generator=red_generator
+                #   )
+                # ------------------------------------------------------
 
                 elif logger:
 
-                    logger.warning(
-                        "Semantic Oracle unavailable: the shared "
-                        "Generator model has not been initialized."
+                    use_shared_backbone = bool(
+                        getattr(
+                            config,
+                            "USE_SHARED_BACKBONE",
+                            True,
+                        )
                     )
 
+                    if use_shared_backbone:
+
+                        logger.warning(
+                            "Semantic Oracle could not use the "
+                            "shared-backbone compatibility fallback "
+                            "because the shared Generator model has "
+                            "not been initialized yet. "
+                            "Initialize the policy first or explicitly "
+                            "inject SemanticJudge."
+                        )
+
+                    else:
+
+                        logger.info(
+                            "Independent-backbone mode detected. "
+                            "No shared Generator model exists by design. "
+                            "SemanticJudge should be explicitly injected "
+                            "from an already-loaded policy Generator."
+                        )
+
             except Exception as exc:
+
+                # ------------------------------------------------------
+                # Preserve existing behavior:
+                #
+                # Oracle construction itself does not crash merely
+                # because optional semantic judging could not be
+                # automatically initialized.
+                #
+                # Deterministic scoring may still operate.
+                # ------------------------------------------------------
 
                 if logger:
 
                     logger.warning(
-                        "Failed to initialize Semantic Oracle: "
+                        "Failed to initialize Semantic Oracle "
+                        "compatibility fallback: "
                         f"{exc}"
                     )
 
@@ -448,10 +581,11 @@ class Oracle:
         """
         Run semantic evaluation.
 
-        The semantic judge is intentionally injected rather than
-        hard-coded here.
+        SemanticJudge is injected rather than hard-coded into scoring.
 
-        This keeps Oracle logic separate from model-generation logic.
+        This keeps Oracle logic separate from model-generation logic and
+        makes the scoring implementation independent of whether policy
+        backbones are shared or independent.
         """
 
         if not config.USE_SEMANTIC_ORACLE:
@@ -677,8 +811,10 @@ class Oracle:
                 temperature=config.ORACLE_TEMPERATURE,
             )
 
-            semantic = self._normalize_result(
-                result
+            semantic = (
+                self._normalize_result(
+                    result
+                )
             )
 
             # ----------------------------------------------------------
@@ -753,8 +889,10 @@ class Oracle:
         #
         # DeterministicChecker may intentionally return
         # real_attack_remains=None when post-defense state cannot be
-        # established from metadata. Such a result must NOT be mapped
-        # into a reward as though None were False.
+        # established from metadata.
+        #
+        # Such a result must NOT be mapped into a reward as though
+        # None were False.
         # --------------------------------------------------------------
 
         if deterministic:
@@ -834,8 +972,11 @@ class Oracle:
         Oracle API and internal call structure remain unchanged.
         """
 
-        outcome = self.interaction_checker.check(
-            finding
+        outcome = (
+            self.interaction_checker
+            .check(
+                finding
+            )
         )
 
         # --------------------------------------------------------------
@@ -848,14 +989,21 @@ class Oracle:
         # while Oracle's existing public result uses:
         #
         #     attack_claim
-        #
         # --------------------------------------------------------------
 
         return InteractionResult(
-            red_reward=outcome.red_reward,
-            blue_reward=outcome.blue_reward,
-            case_id=outcome.case_id,
-            red_claim_type=outcome.red_claim_type,
+            red_reward=(
+                outcome.red_reward
+            ),
+            blue_reward=(
+                outcome.blue_reward
+            ),
+            case_id=(
+                outcome.case_id
+            ),
+            red_claim_type=(
+                outcome.red_claim_type
+            ),
             ground_truth_state=(
                 outcome.ground_truth_state
             ),
@@ -868,7 +1016,9 @@ class Oracle:
             remaining_attacks=list(
                 outcome.remaining_attacks
             ),
-            explanation=outcome.explanation,
+            explanation=(
+                outcome.explanation
+            ),
             metadata=dict(
                 outcome.metadata
             ),
@@ -982,20 +1132,28 @@ class Oracle:
 
         if (
             key in deterministic
-            and deterministic[key] is not None
+            and deterministic[
+                key
+            ] is not None
         ):
 
             return Oracle._clip01(
-                deterministic[key]
+                deterministic[
+                    key
+                ]
             )
 
         if (
             key in semantic
-            and semantic[key] is not None
+            and semantic[
+                key
+            ] is not None
         ):
 
             return Oracle._clip01(
-                semantic[key]
+                semantic[
+                    key
+                ]
             )
 
         # --------------------------------------------------------------
@@ -1036,11 +1194,15 @@ class Oracle:
 
             if (
                 key in result
-                and result[key] is not None
+                and result[
+                    key
+                ] is not None
             ):
 
                 return Oracle._clip01(
-                    result[key]
+                    result[
+                        key
+                    ]
                 )
 
         return None

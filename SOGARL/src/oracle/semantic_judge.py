@@ -11,8 +11,8 @@ Responsibilities
 3. Semantically evaluate Red Turn-3 challenges against Blue defenses.
 4. Return structured JSON-compatible Oracle evidence.
 5. Use hidden scenario metadata only inside the Oracle.
-6. Reuse the already-loaded SOGARL shared base model.
-7. Disable Red/Blue LoRA adapters while performing semantic judging.
+6. Reuse an already-loaded SOGARL policy backbone.
+7. Disable policy LoRA adapters while performing semantic judging.
 
 This module does NOT:
 
@@ -26,7 +26,10 @@ This module does NOT:
     - update model parameters
     - modify scenario objects
 
-Architecture
+Supported architectures
+-----------------------
+
+SHARED BACKBONE:
 
                 Shared PeftModel
                        |
@@ -42,7 +45,24 @@ Architecture
                        v
                 Semantic Oracle
 
-The semantic Oracle is therefore not another base-model load.
+
+INDEPENDENT BACKBONES:
+
+        Red PeftModel                 Blue PeftModel
+             |                             |
+          Red LoRA                      Blue LoRA
+             |
+             |
+        LoRA disabled
+             |
+             v
+      Semantic Oracle
+
+The Semantic Oracle therefore does NOT require another base-model load.
+
+When a Generator is provided, SemanticJudge reuses that Generator's
+already-loaded underlying PEFT/base model regardless of whether the
+Generator uses shared or independent backbone mode.
 """
 
 from __future__ import annotations
@@ -65,10 +85,18 @@ class SemanticJudge:
     """
     Semantic evaluator used by the SOGARL Oracle.
 
-    The judge reuses the already-loaded shared model.
+    The judge reuses an already-loaded SOGARL policy backbone.
 
-    The model is evaluated with all policy LoRA adapters disabled,
+    The model is evaluated with policy LoRA adapters temporarily disabled,
     so semantic evaluation is performed by the underlying base model.
+
+    This works for both:
+
+        USE_SHARED_BACKBONE=True
+
+    and:
+
+        USE_SHARED_BACKBONE=False
 
     Constructor compatibility
     --------------------------
@@ -88,7 +116,7 @@ class SemanticJudge:
             logger=logger,
         )
 
-    The second form is what the current Oracle uses.
+    No additional base model is loaded by this class.
     """
 
     # ==================================================================
@@ -111,38 +139,92 @@ class SemanticJudge:
         self.device = device
 
         # --------------------------------------------------------------
-        # If a Generator was supplied, obtain its underlying shared model.
+        # Preferred path:
+        #
+        # Reuse an already-loaded Generator.
+        #
+        # Shared mode:
+        #
+        #   Generator
+        #       ↓
+        #   _RoleModelView
+        #       ↓
+        #   shared PeftModel
+        #
+        # Independent mode:
+        #
+        #   Generator
+        #       ↓
+        #   PeftModel
+        #
+        # _unwrap_generator_model() handles both.
         # --------------------------------------------------------------
 
         if self.base_generator is not None:
 
             if self.model is None:
-                self.model = self._unwrap_generator_model(
-                    self.base_generator
+
+                self.model = (
+                    self._unwrap_generator_model(
+                        self.base_generator
+                    )
                 )
 
             if self.tokenizer is None:
-                self.tokenizer = self.base_generator.get_tokenizer()
+
+                self.tokenizer = (
+                    self.base_generator
+                    .get_tokenizer()
+                )
 
             if self.device is None:
-                self.device = self.base_generator.get_device()
+
+                self.device = (
+                    self.base_generator
+                    .get_device()
+                )
+
+        # --------------------------------------------------------------
+        # Compatibility:
+        #
+        # A caller may directly provide model=. If that model happens
+        # to be a _RoleModelView from shared-backbone mode, unwrap it
+        # here as well.
+        #
+        # This keeps the existing constructor interface unchanged.
+        # --------------------------------------------------------------
+
+        if self.model is not None:
+
+            shared_model = getattr(
+                self.model,
+                "_shared_model",
+                None,
+            )
+
+            if shared_model is not None:
+
+                self.model = shared_model
 
         # --------------------------------------------------------------
         # Final validation.
         # --------------------------------------------------------------
 
         if self.model is None:
+
             raise ValueError(
                 "SemanticJudge requires an already-loaded "
                 "SOGARL model."
             )
 
         if self.tokenizer is None:
+
             raise ValueError(
                 "SemanticJudge requires a tokenizer."
             )
 
         if self.device is None:
+
             raise ValueError(
                 "SemanticJudge requires a model device."
             )
@@ -163,9 +245,12 @@ class SemanticJudge:
         **kwargs,
     ) -> Dict[str, Any]:
 
-        candidate_type = str(candidate_type).strip().lower()
+        candidate_type = str(
+            candidate_type
+        ).strip().lower()
 
         if candidate_type == "attack":
+
             return self.score_attack(
                 response=response,
                 scenario=scenario,
@@ -174,6 +259,7 @@ class SemanticJudge:
             )
 
         if candidate_type == "defense":
+
             return self.score_defense(
                 response=response,
                 scenario=scenario,
@@ -183,6 +269,7 @@ class SemanticJudge:
             )
 
         if candidate_type == "interaction":
+
             return self.evaluate_interaction(
                 response=response,
                 scenario=scenario,
@@ -208,7 +295,9 @@ class SemanticJudge:
         temperature: float = 0.2,
     ) -> Dict[str, Any]:
 
-        metadata = self._oracle_metadata(scenario)
+        metadata = self._oracle_metadata(
+            scenario
+        )
 
         prompt = self._build_attack_prompt(
             response=response,
@@ -221,7 +310,9 @@ class SemanticJudge:
             temperature=temperature,
         )
 
-        return self._aggregate_candidate_judgments(results)
+        return self._aggregate_candidate_judgments(
+            results
+        )
 
     # ==================================================================
     # DEFENSE SCORING
@@ -236,7 +327,9 @@ class SemanticJudge:
         temperature: float = 0.2,
     ) -> Dict[str, Any]:
 
-        metadata = self._oracle_metadata(scenario)
+        metadata = self._oracle_metadata(
+            scenario
+        )
 
         prompt = self._build_defense_prompt(
             response=response,
@@ -250,7 +343,9 @@ class SemanticJudge:
             temperature=temperature,
         )
 
-        return self._aggregate_candidate_judgments(results)
+        return self._aggregate_candidate_judgments(
+            results
+        )
 
     # ==================================================================
     # TURN-3 INTERACTION
@@ -265,7 +360,9 @@ class SemanticJudge:
         temperature: float = 0.2,
     ) -> Dict[str, Any]:
 
-        metadata = self._oracle_metadata(scenario)
+        metadata = self._oracle_metadata(
+            scenario
+        )
 
         prompt = self._build_interaction_prompt(
             response=response,
@@ -279,8 +376,10 @@ class SemanticJudge:
             temperature=temperature,
         )
 
-        aggregated = self._aggregate_interaction_judgments(
-            results
+        aggregated = (
+            self._aggregate_interaction_judgments(
+                results
+            )
         )
 
         return self._validate_interaction_result(
@@ -303,7 +402,11 @@ class SemanticJudge:
             {},
         )
 
-        if not isinstance(metadata, dict):
+        if not isinstance(
+            metadata,
+            dict,
+        ):
+
             metadata = {}
 
         vulnerabilities = metadata.get(
@@ -350,11 +453,18 @@ class SemanticJudge:
 
             extracted_root_causes = []
 
-            if isinstance(vulnerabilities, list):
+            if isinstance(
+                vulnerabilities,
+                list,
+            ):
 
                 for vulnerability in vulnerabilities:
 
-                    if not isinstance(vulnerability, dict):
+                    if not isinstance(
+                        vulnerability,
+                        dict,
+                    ):
+
                         continue
 
                     value = vulnerability.get(
@@ -363,11 +473,13 @@ class SemanticJudge:
                     )
 
                     if value:
+
                         extracted_root_causes.append(
                             str(value)
                         )
 
             if extracted_root_causes:
+
                 root_cause = "\n".join(
                     extracted_root_causes
                 )
@@ -520,8 +632,11 @@ All scores MUST be numbers between 0 and 1.
     ) -> str:
 
         if attack_response:
+
             attack_text = attack_response
+
         else:
+
             attack_text = (
                 "[Attack_best was not supplied to Blue "
                 "because the confidence gate did not hand it over.]"
@@ -765,8 +880,13 @@ Do not return additional text.
     ) -> List[Dict[str, Any]]:
 
         try:
-            count = int(judgments)
+
+            count = int(
+                judgments
+            )
+
         except Exception:
+
             count = 1
 
         count = max(
@@ -776,7 +896,9 @@ Do not return additional text.
 
         results = []
 
-        for index in range(count):
+        for index in range(
+            count
+        ):
 
             try:
 
@@ -785,11 +907,15 @@ Do not return additional text.
                     temperature=temperature,
                 )
 
-                parsed = self._parse_json(raw)
+                parsed = self._parse_json(
+                    raw
+                )
 
                 if parsed is not None:
 
-                    results.append(parsed)
+                    results.append(
+                        parsed
+                    )
 
                 else:
 
@@ -817,6 +943,23 @@ Do not return additional text.
         prompt: str,
         temperature: float,
     ) -> str:
+        """
+        Generate one semantic judgment using the underlying base model.
+
+        IMPORTANT STATE GUARANTEES:
+
+        1. Works with shared and independent PEFT models.
+        2. Saves the currently active policy/reference adapter.
+        3. Temporarily switches to eval mode.
+        4. Temporarily enables KV caching for generation.
+        5. Disables all LoRA adapters while judging.
+        6. Restores the exact previous adapter.
+        7. Restores the original train/eval state.
+        8. Restores the original use_cache configuration.
+
+        Therefore Oracle evaluation cannot leave Red/Blue policy state
+        corrupted after semantic judging.
+        """
 
         model = self.model
         tokenizer = self.tokenizer
@@ -839,9 +982,18 @@ Do not return additional text.
         )
 
         inputs = {
-            key: value.to(self.device)
-            for key, value in inputs.items()
+            key: value.to(
+                self.device
+            )
+            for (
+                key,
+                value,
+            ) in inputs.items()
         }
+
+        # --------------------------------------------------------------
+        # Preserve model state.
+        # --------------------------------------------------------------
 
         was_training = bool(
             getattr(
@@ -851,9 +1003,68 @@ Do not return additional text.
             )
         )
 
-        previous_adapter = self._get_active_adapter(
-            model
+        previous_adapter = (
+            self._get_active_adapter(
+                model
+            )
         )
+
+        # --------------------------------------------------------------
+        # Preserve KV-cache state.
+        #
+        # GRPO teacher-forced scoring may previously have set:
+        #
+        #     config.use_cache = False
+        #
+        # Semantic generation should be allowed to use the cache, but
+        # must restore the previous value afterward.
+        # --------------------------------------------------------------
+
+        model_config = getattr(
+            model,
+            "config",
+            None,
+        )
+
+        previous_use_cache = None
+
+        if model_config is not None:
+
+            previous_use_cache = getattr(
+                model_config,
+                "use_cache",
+                None,
+            )
+
+            model_config.use_cache = True
+
+        base_model_object = getattr(
+            model,
+            "base_model",
+            None,
+        )
+
+        base_model_config = getattr(
+            base_model_object,
+            "config",
+            None,
+        )
+
+        previous_base_use_cache = None
+
+        if base_model_config is not None:
+
+            previous_base_use_cache = getattr(
+                base_model_config,
+                "use_cache",
+                None,
+            )
+
+            base_model_config.use_cache = True
+
+        # --------------------------------------------------------------
+        # Inference only.
+        # --------------------------------------------------------------
 
         model.eval()
 
@@ -865,7 +1076,23 @@ Do not return additional text.
                 None,
             )
 
-            if callable(disable_adapter):
+            if callable(
+                disable_adapter
+            ):
+
+                # ------------------------------------------------------
+                # PEFT context manager.
+                #
+                # Works regardless of whether this PEFT model contains:
+                #
+                #   red
+                #
+                # or:
+                #
+                #   red + blue + GRPO reference adapters
+                #
+                # All adapters are temporarily bypassed.
+                # ------------------------------------------------------
 
                 with disable_adapter():
 
@@ -877,6 +1104,11 @@ Do not return additional text.
 
             else:
 
+                # ------------------------------------------------------
+                # Compatibility path for a plain/merged causal LM.
+                # There is no adapter to disable.
+                # ------------------------------------------------------
+
                 output = self._raw_generate(
                     model=model,
                     inputs=inputs,
@@ -885,28 +1117,63 @@ Do not return additional text.
 
         finally:
 
+            # ----------------------------------------------------------
+            # Restore exact adapter first.
+            # ----------------------------------------------------------
+
             self._restore_adapter(
                 model=model,
                 adapter=previous_adapter,
             )
 
+            # ----------------------------------------------------------
+            # Restore cache configuration.
+            # ----------------------------------------------------------
+
+            if (
+                model_config is not None
+                and previous_use_cache
+                is not None
+            ):
+
+                model_config.use_cache = (
+                    previous_use_cache
+                )
+
+            if (
+                base_model_config is not None
+                and previous_base_use_cache
+                is not None
+            ):
+
+                base_model_config.use_cache = (
+                    previous_base_use_cache
+                )
+
+            # ----------------------------------------------------------
+            # Restore original model mode.
+            # ----------------------------------------------------------
+
             if was_training:
 
-                try:
-                    model.train()
-                except Exception:
-                    pass
+                model.train()
 
             else:
 
-                try:
-                    model.eval()
-                except Exception:
-                    pass
+                model.eval()
 
-        input_length = inputs["input_ids"].shape[-1]
+        input_length = (
+            inputs[
+                "input_ids"
+            ].shape[-1]
+        )
 
-        generated_tokens = output[:, input_length:]
+        generated_tokens = (
+            output[
+                :,
+                input_length:
+            ]
+        )
 
         text = tokenizer.decode(
             generated_tokens[0],
@@ -925,9 +1192,16 @@ Do not return additional text.
         inputs,
         temperature: float,
     ):
+        """
+        Perform raw base-model autoregressive generation.
+
+        Function signature intentionally unchanged.
+        """
 
         temperature = max(
-            float(temperature),
+            float(
+                temperature
+            ),
             1e-5,
         )
 
@@ -944,8 +1218,13 @@ Do not return additional text.
                     0.95,
                 )
             ),
-            "pad_token_id": self._pad_token_id(),
-            "eos_token_id": self._eos_token_id(),
+            "pad_token_id": (
+                self._pad_token_id()
+            ),
+            "eos_token_id": (
+                self._eos_token_id()
+            ),
+            "use_cache": True,
         }
 
         return model.generate(
@@ -961,9 +1240,33 @@ Do not return additional text.
     def _get_active_adapter(
         model,
     ):
-        return getattr(
+        """
+        Return the currently active PEFT adapter state.
+
+        Works with current PEFT versions exposing either:
+
+            active_adapter
+
+        or:
+
+            active_adapters
+
+        Existing function name/signature preserved.
+        """
+
+        active = getattr(
             model,
             "active_adapter",
+            None,
+        )
+
+        if active is not None:
+
+            return active
+
+        return getattr(
+            model,
+            "active_adapters",
             None,
         )
 
@@ -972,8 +1275,14 @@ Do not return additional text.
         model,
         adapter,
     ) -> None:
+        """
+        Restore the exact adapter that was active before Oracle judging.
+
+        Existing function name/signature preserved.
+        """
 
         if adapter is None:
+
             return
 
         setter = getattr(
@@ -982,24 +1291,66 @@ Do not return additional text.
             None,
         )
 
-        if not callable(setter):
+        if not callable(
+            setter
+        ):
+
             return
 
         try:
 
-            setter(adapter)
+            # PEFT may return:
+            #
+            #   "red"
+            #
+            # or:
+            #
+            #   ["red"]
+            #
+            # depending on version/configuration.
 
-        except Exception:
+            if isinstance(
+                adapter,
+                tuple,
+            ):
+
+                adapter = list(
+                    adapter
+                )
 
             if (
-                isinstance(adapter, list)
+                isinstance(
+                    adapter,
+                    list,
+                )
                 and len(adapter) == 1
             ):
 
-                try:
-                    setter(adapter[0])
-                except Exception:
-                    pass
+                setter(
+                    adapter[0]
+                )
+
+            else:
+
+                setter(
+                    adapter
+                )
+
+        except Exception as exc:
+
+            # ----------------------------------------------------------
+            # Do not silently corrupt adapter state.
+            #
+            # Previously restoration errors were swallowed completely.
+            # That is dangerous in a shared model because Oracle could
+            # leave the wrong adapter active.
+            # ----------------------------------------------------------
+
+            raise RuntimeError(
+                "SemanticJudge failed to restore "
+                f"the previously active adapter: {adapter}. "
+                f"Original error: {exc}"
+            ) from exc
 
     # ==================================================================
     # TOKENIZER HELPERS
@@ -1016,6 +1367,7 @@ Do not return additional text.
         )
 
         if value is not None:
+
             return value
 
         return getattr(
@@ -1079,7 +1431,10 @@ Do not return additional text.
                 )
 
                 if value is not None:
-                    values.append(value)
+
+                    values.append(
+                        value
+                    )
 
             if values:
 
@@ -1095,21 +1450,29 @@ Do not return additional text.
         valid_scores = [
             output[key]
             for key in score_keys
-            if output.get(key) is not None
+            if output.get(
+                key
+            ) is not None
         ]
 
         if valid_scores:
 
-            output["semantic_score"] = (
+            output[
+                "semantic_score"
+            ] = (
                 sum(valid_scores)
                 / len(valid_scores)
             )
 
         else:
 
-            output["semantic_score"] = None
+            output[
+                "semantic_score"
+            ] = None
 
-        output["semantic_available"] = bool(
+        output[
+            "semantic_available"
+        ] = bool(
             valid_scores
         )
 
@@ -1132,7 +1495,9 @@ Do not return additional text.
 
         if explanations:
 
-            output["explanation"] = (
+            output[
+                "explanation"
+            ] = (
                 " | ".join(
                     explanations
                 )
@@ -1148,74 +1513,44 @@ Do not return additional text.
         self,
         results: List[Dict[str, Any]],
     ) -> Dict[str, Any]:
-        """
-        Aggregate Turn-3 semantic judgments.
-
-        Boolean fields use MAJORITY VOTING.
-
-        With the recommended configuration:
-
-            ORACLE_JUDGMENTS = 3
-
-        examples:
-
-            True, True, False  -> True
-            True, False, True  -> True
-            False, False, True -> False
-            False, True, False -> False
-
-        An exact tie is returned as None because there is no majority.
-        This preserves the safety property that an unsupported factual
-        state is never fabricated.
-
-        String/list fields continue to use conservative consensus.
-        """
 
         if not results:
+
             return {}
 
-        # --------------------------------------------------------------
-        # Claim type
-        # --------------------------------------------------------------
-
-        claim_type = self._aggregate_claim_type(
-            results
+        claim_type = (
+            self._aggregate_claim_type(
+                results
+            )
         )
 
-        # --------------------------------------------------------------
-        # Boolean fields
-        #
-        # IMPORTANT:
-        # This is the stability fix for stochastic Turn 3.
-        # --------------------------------------------------------------
-
-        claimed_valid = self._consensus_bool(
-            results,
-            "claimed_attack_valid",
+        claimed_valid = (
+            self._consensus_bool(
+                results,
+                "claimed_attack_valid",
+            )
         )
 
-        claimed_remains = self._consensus_bool(
-            results,
-            "claimed_attack_remains",
+        claimed_remains = (
+            self._consensus_bool(
+                results,
+                "claimed_attack_remains",
+            )
         )
 
-        no_attack_verified = self._consensus_bool(
-            results,
-            "no_attack_verified",
+        no_attack_verified = (
+            self._consensus_bool(
+                results,
+                "no_attack_verified",
+            )
         )
 
-        real_attack_remains = self._consensus_bool(
-            results,
-            "real_attack_remains",
+        real_attack_remains = (
+            self._consensus_bool(
+                results,
+                "real_attack_remains",
+            )
         )
-
-        # --------------------------------------------------------------
-        # We require every factual boolean to have a majority.
-        #
-        # With ORACLE_JUDGMENTS=3 this means at least 2/3 agreement.
-        # If there is no majority, semantic evidence is incomplete and
-        # Oracle is allowed to fall back to deterministic evidence.
-        # --------------------------------------------------------------
 
         if any(
             value is None
@@ -1229,33 +1564,25 @@ Do not return additional text.
 
             return {}
 
-        # --------------------------------------------------------------
-        # String fields
-        # --------------------------------------------------------------
-
-        claimed_attack = self._consensus_string(
-            results,
-            "claimed_attack",
+        claimed_attack = (
+            self._consensus_string(
+                results,
+                "claimed_attack",
+            )
         )
 
-        verified_attack = self._consensus_string(
-            results,
-            "verified_attack",
+        verified_attack = (
+            self._consensus_string(
+                results,
+                "verified_attack",
+            )
         )
-
-        # --------------------------------------------------------------
-        # Remaining attacks.
-        # --------------------------------------------------------------
 
         remaining_attacks = (
             self._consensus_remaining_attacks(
                 results
             )
         )
-
-        # --------------------------------------------------------------
-        # Reconcile final state with remaining_attacks.
-        # --------------------------------------------------------------
 
         if remaining_attacks:
 
@@ -1266,17 +1593,9 @@ Do not return additional text.
 
             no_attack_verified = True
 
-        # --------------------------------------------------------------
-        # If judges agree that Red claims no attack, use canonical form.
-        # --------------------------------------------------------------
-
         if claim_type == "no_attack":
 
             claimed_attack = None
-
-        # --------------------------------------------------------------
-        # Explanation.
-        # --------------------------------------------------------------
 
         explanations = []
 
@@ -1362,23 +1681,9 @@ Do not return additional text.
         results: List[Dict[str, Any]],
         key: str,
     ) -> Optional[bool]:
-        """
-        Return the majority boolean value.
-
-        This replaces the previous unanimous-consensus behavior.
-
-        Why:
-            Turn-3 semantic judgments are sampled with temperature > 0.
-            Therefore occasional disagreement is expected.
-
-        Safety:
-            - At least one valid boolean is required.
-            - A strict majority is required.
-            - A tie returns None.
-            - Invalid/missing boolean values are ignored.
-        """
 
         if not results:
+
             return None
 
         values: List[bool] = []
@@ -1395,9 +1700,12 @@ Do not return additional text.
                 bool,
             ):
 
-                values.append(value)
+                values.append(
+                    value
+                )
 
         if not values:
+
             return None
 
         true_count = sum(
@@ -1406,12 +1714,17 @@ Do not return additional text.
             if value
         )
 
-        false_count = len(values) - true_count
+        false_count = (
+            len(values)
+            - true_count
+        )
 
         if true_count > false_count:
+
             return True
 
         if false_count > true_count:
+
             return False
 
         return None
@@ -1436,10 +1749,13 @@ Do not return additional text.
             )
 
             if value is None:
+
                 continue
 
-            normalized = self._normalize_text(
-                value
+            normalized = (
+                self._normalize_text(
+                    value
+                )
             )
 
             if normalized:
@@ -1455,10 +1771,20 @@ Do not return additional text.
 
             return None
 
-        counts: Dict[str, int] = {}
-        originals: Dict[str, str] = {}
+        counts: Dict[
+            str,
+            int,
+        ] = {}
 
-        for normalized, original in values:
+        originals: Dict[
+            str,
+            str,
+        ] = {}
+
+        for (
+            normalized,
+            original,
+        ) in values:
 
             counts[normalized] = (
                 counts.get(
@@ -1477,13 +1803,20 @@ Do not return additional text.
             key=counts.get,
         )
 
-        required = len(results)
+        required = len(
+            results
+        )
 
-        if counts[winner] < required:
+        if (
+            counts[winner]
+            < required
+        ):
 
             return None
 
-        return originals[winner]
+        return originals[
+            winner
+        ]
 
     # ==================================================================
     # REMAINING ATTACK CONSENSUS
@@ -1495,10 +1828,15 @@ Do not return additional text.
     ) -> List[str]:
 
         if not results:
+
             return []
 
         normalized_sets = []
-        display_names: Dict[str, str] = {}
+
+        display_names: Dict[
+            str,
+            str,
+        ] = {}
 
         for result in results:
 
@@ -1518,14 +1856,19 @@ Do not return additional text.
 
             for attack in attacks:
 
-                normalized = self._normalize_text(
-                    attack
+                normalized = (
+                    self._normalize_text(
+                        attack
+                    )
                 )
 
                 if not normalized:
+
                     continue
 
-                current.add(normalized)
+                current.add(
+                    normalized
+                )
 
                 display_names[
                     normalized
@@ -1538,11 +1881,16 @@ Do not return additional text.
             )
 
         if not normalized_sets:
+
             return []
 
-        consensus = normalized_sets[0]
+        consensus = (
+            normalized_sets[0]
+        )
 
-        for current in normalized_sets[1:]:
+        for current in (
+            normalized_sets[1:]
+        ):
 
             consensus = (
                 consensus
@@ -1550,7 +1898,9 @@ Do not return additional text.
             )
 
         return [
-            display_names[attack]
+            display_names[
+                attack
+            ]
             for attack in consensus
         ]
 
@@ -1565,9 +1915,12 @@ Do not return additional text.
     ) -> Dict[str, Any]:
 
         if not result:
+
             return {}
 
-        result = dict(result)
+        result = dict(
+            result
+        )
 
         valid_attacks = [
             str(x).strip()
@@ -1592,8 +1945,13 @@ Do not return additional text.
             )
         ):
 
-            result["claimed_attack_valid"] = False
-            result["claimed_attack_remains"] = False
+            result[
+                "claimed_attack_valid"
+            ] = False
+
+            result[
+                "claimed_attack_remains"
+            ] = False
 
         remaining = result.get(
             "remaining_attacks",
@@ -1611,9 +1969,11 @@ Do not return additional text.
 
         for attack in remaining:
 
-            canonical = self._canonical_label(
-                attack,
-                valid_attacks,
+            canonical = (
+                self._canonical_label(
+                    attack,
+                    valid_attacks,
+                )
             )
 
             if (
@@ -1625,15 +1985,15 @@ Do not return additional text.
                     canonical
                 )
 
-        result["remaining_attacks"] = validated
+        result[
+            "remaining_attacks"
+        ] = validated
 
-        # --------------------------------------------------------------
-        # Preserve the semantic factual state.
-        # --------------------------------------------------------------
-
-        semantic_real_attack_remains = result.get(
-            "real_attack_remains",
-            None,
+        semantic_real_attack_remains = (
+            result.get(
+                "real_attack_remains",
+                None,
+            )
         )
 
         if isinstance(
@@ -1655,17 +2015,15 @@ Do not return additional text.
 
             real_attack_remains = True
 
-        result["real_attack_remains"] = (
-            real_attack_remains
-        )
+        result[
+            "real_attack_remains"
+        ] = real_attack_remains
 
-        # --------------------------------------------------------------
-        # Preserve explicit no_attack_verified where valid.
-        # --------------------------------------------------------------
-
-        semantic_no_attack_verified = result.get(
-            "no_attack_verified",
-            None,
+        semantic_no_attack_verified = (
+            result.get(
+                "no_attack_verified",
+                None,
+            )
         )
 
         if isinstance(
@@ -1687,29 +2045,33 @@ Do not return additional text.
 
             no_attack_verified = False
 
-        result["no_attack_verified"] = (
-            no_attack_verified
-        )
-
-        # --------------------------------------------------------------
-        # Validate claimed attack.
-        # --------------------------------------------------------------
+        result[
+            "no_attack_verified"
+        ] = no_attack_verified
 
         if (
             result.get(
                 "claimed_attack"
             )
             and self._label_in(
-                result["claimed_attack"],
+                result[
+                    "claimed_attack"
+                ],
                 valid_attacks,
             )
         ):
 
-            result["claimed_attack_valid"] = True
+            result[
+                "claimed_attack_valid"
+            ] = True
 
-            result["claimed_attack_remains"] = any(
+            result[
+                "claimed_attack_remains"
+            ] = any(
                 self._normalize_text(
-                    result["claimed_attack"]
+                    result[
+                        "claimed_attack"
+                    ]
                 )
                 == self._normalize_text(
                     x
@@ -1730,15 +2092,22 @@ Do not return additional text.
     ) -> bool:
 
         if value is None:
+
             return False
 
-        normalized = SemanticJudge._normalize_text(
-            value
+        normalized = (
+            SemanticJudge
+            ._normalize_text(
+                value
+            )
         )
 
         return any(
             normalized
-            == SemanticJudge._normalize_text(label)
+            == SemanticJudge
+            ._normalize_text(
+                label
+            )
             for label in labels
         )
 
@@ -1749,13 +2118,21 @@ Do not return additional text.
     ) -> Optional[str]:
 
         if value is None:
+
             return None
 
         for label in labels:
 
             if (
-                SemanticJudge._normalize_text(value)
-                == SemanticJudge._normalize_text(label)
+                SemanticJudge
+                ._normalize_text(
+                    value
+                )
+                ==
+                SemanticJudge
+                ._normalize_text(
+                    label
+                )
             ):
 
                 return label
@@ -1772,9 +2149,12 @@ Do not return additional text.
     ) -> Optional[Dict[str, Any]]:
 
         if not text:
+
             return None
 
-        text = str(text).strip()
+        text = str(
+            text
+        ).strip()
 
         fenced = re.search(
             r"```(?:json)?\s*(.*?)\s*```",
@@ -1788,11 +2168,17 @@ Do not return additional text.
 
         if fenced:
 
-            text = fenced.group(1).strip()
+            text = (
+                fenced
+                .group(1)
+                .strip()
+            )
 
         try:
 
-            value = json.loads(text)
+            value = json.loads(
+                text
+            )
 
             if isinstance(
                 value,
@@ -1804,7 +2190,9 @@ Do not return additional text.
         except Exception:
             pass
 
-        start = text.find("{")
+        start = text.find(
+            "{"
+        )
 
         if start < 0:
             return None
@@ -1818,7 +2206,9 @@ Do not return additional text.
             len(text),
         ):
 
-            char = text[index]
+            char = text[
+                index
+            ]
 
             if escaped:
 
@@ -1835,7 +2225,10 @@ Do not return additional text.
 
             if char == '"':
 
-                in_string = not in_string
+                in_string = (
+                    not in_string
+                )
+
                 continue
 
             if in_string:
@@ -1852,7 +2245,8 @@ Do not return additional text.
                 if depth == 0:
 
                     candidate = text[
-                        start:index + 1
+                        start:
+                        index + 1
                     ]
 
                     try:
@@ -1888,7 +2282,9 @@ Do not return additional text.
 
         try:
 
-            value = float(value)
+            value = float(
+                value
+            )
 
         except (
             TypeError,
@@ -1987,11 +2383,16 @@ Do not return additional text.
             ),
         ):
 
-            return SemanticJudge._safe_json(
-                value
+            return (
+                SemanticJudge
+                ._safe_json(
+                    value
+                )
             )
 
-        return str(value)
+        return str(
+            value
+        )
 
     # ==================================================================
     # SAFE JSON SERIALIZATION
@@ -2013,7 +2414,9 @@ Do not return additional text.
 
         except Exception:
 
-            return str(value)
+            return str(
+                value
+            )
 
     # ==================================================================
     # GENERATOR MODEL UNWRAPPING
@@ -2023,8 +2426,57 @@ Do not return additional text.
     def _unwrap_generator_model(
         generator,
     ):
+        """
+        Obtain the actual model used as the Oracle backbone.
 
-        model = generator.get_model()
+        Existing function name/signature preserved.
+
+        Supports:
+
+            shared:
+                Generator
+                    ↓
+                _RoleModelView
+                    ↓
+                shared PeftModel
+
+            independent:
+                Generator
+                    ↓
+                PeftModel
+
+        Also supports the newer Generator.get_underlying_model() helper
+        when available, without requiring it.
+        """
+
+        # --------------------------------------------------------------
+        # Preferred modern Generator API.
+        # --------------------------------------------------------------
+
+        getter = getattr(
+            generator,
+            "get_underlying_model",
+            None,
+        )
+
+        if callable(
+            getter
+        ):
+
+            model = getter()
+
+            if model is not None:
+
+                return model
+
+        # --------------------------------------------------------------
+        # Backward-compatible Generator API.
+        # --------------------------------------------------------------
+
+        model = (
+            generator
+            .get_model()
+        )
 
         shared_model = getattr(
             model,

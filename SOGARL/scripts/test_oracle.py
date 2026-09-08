@@ -35,6 +35,7 @@ from src.data.code_loader import CodeLoader
 from src.generation.generator import Generator
 
 from src.oracle.oracle import Oracle
+from src.oracle.semantic_judge import SemanticJudge
 from src.oracle.deterministic_checks import DeterministicChecker
 
 
@@ -114,6 +115,7 @@ def load_test_scenario(
     loader: ScenarioLoader,
     scenario_id: str,
 ):
+
     return loader.load_scenario(
         scenario_id
     )
@@ -164,13 +166,17 @@ def load_code_context(
 # SEMANTIC MODEL INITIALIZATION
 # ============================================================================
 
-def initialize_semantic_model() -> None:
+def initialize_semantic_model():
     """
-    Initialize the shared Generator model used by the Oracle's
-    SemanticJudge.
+    Initialize the Red Generator used by the Oracle's SemanticJudge.
 
-    The Oracle reuses the shared model already initialized by
-    Generator.from_config().
+    This works in both modes:
+
+        USE_SHARED_BACKBONE=True
+        USE_SHARED_BACKBONE=False
+
+    SemanticJudge will reuse the already-loaded Red Generator backbone
+    and will not load another base model.
     """
 
     print()
@@ -178,11 +184,15 @@ def initialize_semantic_model() -> None:
     print("INITIALIZING SHARED SEMANTIC MODEL")
     print("=" * 70)
 
-    Generator.from_config(
+    red_generator = Generator.from_config(
         role="red"
     )
 
+    red_generator.eval()
+
     print("Semantic model initialized.")
+
+    return red_generator
 
 
 # ============================================================================
@@ -518,16 +528,27 @@ def run_test(
     # Semantic model
     # ------------------------------------------------------------------------
     #
-    # IMPORTANT:
     # Turn 3 requires a complete interaction finding.
-    # Deterministic checking alone may not be able to establish
-    # real_attack_remains. The production Oracle therefore uses the
-    # SemanticJudge when the shared Generator has been initialized.
     #
-    # Initialize the same shared Generator used by the real pipeline.
+    # Deterministic checking alone may not be able to establish
+    # real_attack_remains.
+    #
+    # The SemanticJudge explicitly reuses the already-loaded Red
+    # Generator so this test works with both shared and independent
+    # policy loading.
     # ------------------------------------------------------------------------
 
-    initialize_semantic_model()
+    red_generator = (
+        initialize_semantic_model()
+    )
+
+    semantic_judge = None
+
+    if config.USE_SEMANTIC_ORACLE:
+
+        semantic_judge = SemanticJudge(
+            base_generator=red_generator,
+        )
 
     # ------------------------------------------------------------------------
     # Oracle
@@ -540,7 +561,10 @@ def run_test(
     oracle = Oracle(
         deterministic_checker=(
             deterministic_checker
-        )
+        ),
+        semantic_judge=(
+            semantic_judge
+        ),
     )
 
     # ------------------------------------------------------------------------
@@ -722,5 +746,4 @@ def main() -> int:
 
 
 if __name__ == "__main__":
-
     sys.exit(main())

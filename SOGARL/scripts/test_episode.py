@@ -33,6 +33,7 @@ from src.generation.prompt_builder import PromptBuilder
 from src.generation.generator import Generator
 
 from src.oracle.oracle import Oracle
+from src.oracle.semantic_judge import SemanticJudge
 from src.oracle.deterministic_checks import DeterministicChecker
 from src.oracle.interaction_checker import InteractionChecker
 
@@ -126,6 +127,16 @@ def build_generators():
         - device
         - generation
         - log-probability calculation
+
+    Generator internally handles either:
+
+        USE_SHARED_BACKBONE=True
+
+    or:
+
+        USE_SHARED_BACKBONE=False
+
+    No architecture-specific logic is required here.
     """
 
     red_generator = (
@@ -140,8 +151,16 @@ def build_generators():
         )
     )
 
-    red_generator.model.eval()
-    blue_generator.model.eval()
+    # ------------------------------------------------------------------
+    # This script performs inference only.
+    #
+    # Generator itself now safely enters eval mode during generation
+    # and restores previous state afterward. Explicit eval here also
+    # keeps the integration-test model state unambiguous.
+    # ------------------------------------------------------------------
+
+    red_generator.eval()
+    blue_generator.eval()
 
     return (
         red_generator,
@@ -194,16 +213,63 @@ def build_episode_manager(
 
     # ------------------------------------------------------------------------
     # Oracle
+    #
+    # IMPORTANT:
+    #
+    # Explicitly construct SemanticJudge from the already-loaded Red
+    # Generator.
+    #
+    # This works in BOTH architectures.
+    #
+    # Shared mode:
+    #
+    #     Red Generator
+    #           ↓
+    #     _RoleModelView
+    #           ↓
+    #     shared PeftModel
+    #           ↓
+    #     LoRA disabled
+    #           ↓
+    #     Semantic Oracle
+    #
+    # Independent mode:
+    #
+    #     Red Generator
+    #           ↓
+    #     Red PeftModel
+    #           ↓
+    #     Red LoRA disabled
+    #           ↓
+    #     Red base model
+    #           ↓
+    #     Semantic Oracle
+    #
+    # Therefore Oracle never needs to assume that
+    # Generator._shared_model exists.
+    #
+    # No additional base model is loaded.
     # ------------------------------------------------------------------------
 
     deterministic_checker = (
         DeterministicChecker()
     )
 
+    semantic_judge = None
+
+    if config.USE_SEMANTIC_ORACLE:
+
+        semantic_judge = SemanticJudge(
+            base_generator=red_generator,
+        )
+
     oracle = Oracle(
         deterministic_checker=(
             deterministic_checker
-        )
+        ),
+        semantic_judge=(
+            semantic_judge
+        ),
     )
 
     interaction_checker = (
@@ -572,6 +638,7 @@ def main() -> int:
     except KeyboardInterrupt:
 
         print()
+
         print(
             "Episode test interrupted."
         )
@@ -581,6 +648,7 @@ def main() -> int:
     except Exception as exc:
 
         print()
+
         print("=" * 70)
         print("EPISODE TEST FAILED")
         print("=" * 70)

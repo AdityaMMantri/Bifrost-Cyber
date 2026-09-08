@@ -2,7 +2,6 @@
 train.py
 
 Main SOGARL training entry point.
-
 Flow:
 
     Dataset
@@ -123,24 +122,9 @@ def parse_args() -> argparse.Namespace:
 
 def build_logger() -> SOGARLLogger:
 
-    log_dir = Path(
-        config.LOG_PATH
-    )
-
-    log_dir.mkdir(
-        parents=True,
-        exist_ok=True,
-    )
-
-    return SOGARLLogger(
-        name="SOGARL",
-        log_file=(
-            log_dir
-            / "training.log"
-        ),
-        level=config.LOG_LEVEL,
-        console=True,
-    )
+    log_dir = Path(config.LOG_PATH)
+    log_dir.mkdir(parents=True,exist_ok=True)
+    return SOGARLLogger(name="SOGARL",log_file=(log_dir/ "training.log"),level=config.LOG_LEVEL,console=True)
 
 
 # ============================================================================
@@ -152,45 +136,23 @@ def get_scenario_paths() -> List[Path]:
     Return all scenario directories from the SFT dataset.
     """
 
-    dataset_path = Path(
-        config.DATASET_PATH
-    )
+    dataset_path = Path(config.DATASET_PATH)
 
     if not dataset_path.is_dir():
-
         raise FileNotFoundError(
             "Dataset directory does not exist: "
-            f"{dataset_path}"
-        )
+            f"{dataset_path}")
 
-    scenarios = sorted(
-        [
-            path
-            for path in dataset_path.iterdir()
-            if (
-                path.is_dir()
-                and path.name.startswith(
-                    "scenario_"
-                )
-            )
-        ],
-        key=lambda path: path.name,
-    )
+    scenarios = sorted([path for path in dataset_path.iterdir() if (path.is_dir() and path.name.startswith("scenario_"))],key=lambda path: path.name)
 
     if not scenarios:
-
         raise RuntimeError(
             "No scenario directories found in "
-            f"{dataset_path}"
-        )
-
+            f"{dataset_path}")
     return scenarios
 
 
-def load_scenarios(
-    scenario_loader: ScenarioLoader,
-    scenario_paths: Sequence[Path],
-) -> List[Scenario]:
+def load_scenarios(scenario_loader: ScenarioLoader,scenario_paths: Sequence[Path]) -> List[Scenario]:
     """
     Load complete Scenario objects.
 
@@ -200,24 +162,12 @@ def load_scenarios(
     """
 
     scenarios: List[Scenario] = []
-
     for scenario_path in scenario_paths:
-
-        scenario = (
-            scenario_loader.load_scenario(
-                scenario_path.name
-            )
-        )
-
-        scenarios.append(
-            scenario
-        )
+        scenario = (scenario_loader.load_scenario(scenario_path.name))
+        scenarios.append(scenario)
 
     if not scenarios:
-
-        raise RuntimeError(
-            "No scenarios could be loaded."
-        )
+        raise RuntimeError("No scenarios could be loaded.")
 
     return scenarios
 
@@ -226,84 +176,34 @@ def load_scenarios(
 # DATASET SPLIT
 # ============================================================================
 
-def split_scenarios(
-    scenarios: Sequence[Scenario],
-) -> tuple[
-    List[Scenario],
-    List[Scenario],
-    List[Scenario],
-]:
+def split_scenarios(scenarios: Sequence[Scenario]) -> tuple[List[Scenario],List[Scenario],List[Scenario]]:
     """
     Split scenarios into train/validation/test sets.
-
     The split is deterministic using SPLIT_SEED.
     """
-
-    scenarios = list(
-        scenarios
-    )
-
-    rng = random.Random(
-        config.SPLIT_SEED
-    )
-
-    rng.shuffle(
-        scenarios
-    )
-
-    total = len(
-        scenarios
-    )
-
-    train_count = int(
-        total
-        * config.TRAIN_RATIO
-    )
-
-    validation_count = int(
-        total
-        * config.VALIDATION_RATIO
-    )
-
+    scenarios = list(scenarios)
+    rng = random.Random(config.SPLIT_SEED)
+    rng.shuffle(scenarios)
+    total = len(scenarios)
+    train_count = int(total * config.TRAIN_RATIO)
+    validation_count = int(total * config.VALIDATION_RATIO)
     train_end = train_count
-
-    validation_end = (
-        train_count
-        + validation_count
-    )
-
-    train_scenarios = scenarios[
-        :train_end
-    ]
-
-    validation_scenarios = scenarios[
-        train_end:validation_end
-    ]
-
-    test_scenarios = scenarios[
-        validation_end:
-    ]
+    validation_end = (train_count + validation_count)
+    train_scenarios = scenarios[:train_end]
+    validation_scenarios = scenarios[train_end:validation_end]
+    test_scenarios = scenarios[validation_end:]
 
     if not train_scenarios:
+        raise RuntimeError("Training split is empty.")
 
-        raise RuntimeError(
-            "Training split is empty."
-        )
-
-    return (
-        train_scenarios,
-        validation_scenarios,
-        test_scenarios,
-    )
+    return (train_scenarios,validation_scenarios,test_scenarios)
 
 
 # ============================================================================
 # EPISODE MANAGER
 # ============================================================================
 
-def build_episode_manager(
-    logger: SOGARLLogger,
-) -> EpisodeManager:
+def build_episode_manager(logger: SOGARLLogger) -> EpisodeManager:
     """
     Construct the complete SOGARL dependency graph.
 
@@ -513,7 +413,7 @@ def save_checkpoint(
     episode: int,
     best_metric: Optional[float],
     logger: SOGARLLogger,
-) -> None:
+) -> Path:
 
     red_trainer = (
         episode_manager.red_trainer
@@ -624,6 +524,8 @@ def save_checkpoint(
         f"epoch={epoch} | "
         f"episode={episode}"
     )
+
+    return checkpoint_dir
 
 
 # ============================================================================
@@ -1196,7 +1098,6 @@ def save_best_checkpoint(
     )
 
 
-
 # ============================================================================
 # TRAINING
 # ============================================================================
@@ -1622,21 +1523,38 @@ def train(
                         True,
                     ):
 
-                        epoch_checkpoint = (
-                            save_checkpoint(
-                                checkpoint_manager=(
-                                    checkpoint_manager
-                                ),
-                                episode_manager=(
-                                    episode_manager
-                                ),
-                                sampler=sampler,
-                                epoch=epoch,
-                                episode=global_episode,
-                                best_metric=best_metric,
-                                logger=logger,
-                            )
+                        checkpoint_name = (
+                            f"epoch_{epoch:03d}"
+                            f"_episode_{global_episode:06d}"
                         )
+
+                        if checkpoint_manager.exists(
+                            checkpoint_name
+                        ):
+
+                            epoch_checkpoint = (
+                                checkpoint_manager
+                                .checkpoint_root
+                                / checkpoint_name
+                            )
+
+                        else:
+
+                            epoch_checkpoint = (
+                                save_checkpoint(
+                                    checkpoint_manager=(
+                                        checkpoint_manager
+                                    ),
+                                    episode_manager=(
+                                        episode_manager
+                                    ),
+                                    sampler=sampler,
+                                    epoch=epoch,
+                                    episode=global_episode,
+                                    best_metric=best_metric,
+                                    logger=logger,
+                                )
+                            )
 
                         save_best_checkpoint(
                             checkpoint_manager=(
@@ -1815,7 +1733,4 @@ def main() -> int:
 
 
 if __name__ == "__main__":
-
-    sys.exit(
-        main()
-    )
+    sys.exit(main())

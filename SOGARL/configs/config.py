@@ -172,15 +172,11 @@ input dataset contains the LoRA adapters, while the base model is
 downloaded from Hugging Face.
 """
 
-RED_MERGED_MODEL_PATH = Path(os.getenv(
-    "SOGARL_RED_MERGED_MODEL",
-    str(LORA_ROOT / "Red_lora" / "Llama" / "results" / "outputs" / "merged_model"),
-)).expanduser()
+RED_MERGED_MODEL_PATH = Path(os.getenv("SOGARL_RED_MERGED_MODEL",
+    str(LORA_ROOT / "Red_lora" / "Llama" / "results" / "outputs" / "merged_model"))).expanduser()
 
-BLUE_MERGED_MODEL_PATH = Path(os.getenv(
-    "SOGARL_BLUE_MERGED_MODEL",
-    str(LORA_ROOT / "Blue_lora" / "Llama" / "results" / "outputs" / "merged_model"),
-)).expanduser()
+BLUE_MERGED_MODEL_PATH = Path(os.getenv("SOGARL_BLUE_MERGED_MODEL",
+    str(LORA_ROOT / "Blue_lora" / "Llama" / "results" / "outputs" / "merged_model"))).expanduser()
 
 # ============================================================================
 # BASE MODEL
@@ -209,8 +205,9 @@ _BASE_MODEL_OVERRIDE = os.getenv("SOGARL_BASE_MODEL", "").strip()
 BASE_MODEL_NAME = (
     _BASE_MODEL_PATH
     if _BASE_MODEL_PATH
-    else (_BASE_MODEL_OVERRIDE or "unsloth/Meta-Llama-3.1-8B-Instruct")
-)
+    else (_BASE_MODEL_OVERRIDE or "unsloth/meta-llama-3.1-8b-instruct-unsloth-bnb-4bit"))
+
+USE_SHARED_BACKBONE = True
 
 BASE_MODEL_SOURCE = os.getenv("SOGARL_BASE_MODEL_SOURCE", "auto").strip().lower()
 if BASE_MODEL_SOURCE not in {"auto", "huggingface", "local"}:
@@ -223,17 +220,11 @@ if BASE_MODEL_SOURCE not in {"auto", "huggingface", "local"}:
 
 """
 The Oracle is separate from the Red and Blue policies.
-
 It evaluates generated responses against metadata.json.
-
 By default, the Oracle uses BASE_MODEL_NAME.
-
 If a separate Oracle model is desired, set:
-
     SOGARL_ORACLE_MODEL
-
 through the environment.
-
 The Oracle does NOT use the Red/Blue LoRA adapters.
 """
 
@@ -244,8 +235,7 @@ ORACLE_MODEL_SOURCE = os.getenv(
 ).strip().lower()
 if ORACLE_MODEL_SOURCE not in {"auto", "huggingface", "local"}:
     raise ValueError(
-        "SOGARL_ORACLE_MODEL_SOURCE must be one of: auto, huggingface, local."
-    )
+        "SOGARL_ORACLE_MODEL_SOURCE must be one of: auto, huggingface, local.")
 
 # ============================================================================
 # OUTPUT PATHS
@@ -276,25 +266,12 @@ _DEFAULT_OUTPUT_ROOT = (
     else SOGARL_ROOT / "outputs"
 )
 
-OUTPUTS_PATH = Path(
-    os.getenv("SOGARL_OUTPUT_DIR", str(_DEFAULT_OUTPUT_ROOT))
-).expanduser()
+OUTPUTS_PATH = Path(os.getenv("SOGARL_OUTPUT_DIR", str(_DEFAULT_OUTPUT_ROOT))).expanduser()
 
-CHECKPOINT_PATH = (
-    OUTPUTS_PATH / "checkpoints"
-)
-
-REPLAY_PATH = (
-    OUTPUTS_PATH / "replay"
-)
-
-METRICS_PATH = (
-    OUTPUTS_PATH / "metrics"
-)
-
-LOG_PATH = (
-    OUTPUTS_PATH / "logs"
-)
+CHECKPOINT_PATH = (OUTPUTS_PATH / "checkpoints")
+REPLAY_PATH     = (OUTPUTS_PATH / "replay")
+METRICS_PATH    = (OUTPUTS_PATH / "metrics")
+LOG_PATH        = (OUTPUTS_PATH / "logs")
 
 
 # ============================================================================
@@ -303,21 +280,15 @@ LOG_PATH = (
 
 """
 Scenarios are split at the scenario level.
-
 A complete scenario belongs to exactly one split.
-
 We do NOT split individual candidate responses.
 """
 
-TRAIN_RATIO = 0.70
-
+TRAIN_RATIO      = 0.70
 VALIDATION_RATIO = 0.15
-
-TEST_RATIO = 0.15
-
-SPLIT_SEED = 42
-
-MIN_SCENARIOS = 1
+TEST_RATIO       = 0.15
+SPLIT_SEED       = 42
+MIN_SCENARIOS    = 1
 
 
 # ============================================================================
@@ -325,16 +296,13 @@ MIN_SCENARIOS = 1
 # ============================================================================
 
 SEED = 42
-
 NUM_EPOCHS = 3
 
 # None means:
 # process every training scenario once per epoch.
 
 MAX_EPISODES = None
-
 SHUFFLE_SCENARIOS = True
-
 
 # ============================================================================
 # LOCKED SOGARL EPISODE STRUCTURE
@@ -368,101 +336,63 @@ Red Turn-1 Oracle advantages
 TURN 2 — BLUE DEFENSE GENERATION
 --------------------------------
 
-Repository
-+
-Safe Scenario Context
-
+Repository + Safe Scenario Context
         +
-
 Attack_best
         OR
 Independent fallback
-
         ↓
-
 Blue LoRA
-
         ↓
-
 G defense candidates
-
         ↓
-
 Oracle scores all G candidates
-
         ↓
-
 Blue Oracle advantages
-
         ↓
-
 Top-K defenses selected
-
 
 TURN 3 — RED ADVERSARIAL CHALLENGE
 -----------------------------------
 
 For each Top-K Blue defense:
 
-Repository
-+
-Safe Scenario Context
-+
-Blue defense
-
+Repository + Safe Scenario Context + Blue defense
         ↓
-
 Red LoRA
-
         ↓
-
 Red challenge response
-
         ↓
-
 Oracle determines interaction outcome
 
 
 IMPORTANT:
 
 Turn 3 is interaction evidence in v1.
-
 It does NOT create another Red GRPO update.
-
 The interaction reward is attributed to the
 Blue defense candidate that was actually challenged.
 """
-
 
 # ============================================================================
 # GRPO ROLLOUTS
 # ============================================================================
 
 NUM_ROLLOUTS = 8
-
 TOP_K = 3
-
 
 # ============================================================================
 # GENERATION
 # ============================================================================
 
 RED_TEMPERATURE = 0.8
-
 BLUE_TEMPERATURE = 0.8
-
 CHALLENGE_TEMPERATURE = 0.7
-
 TOP_P = 0.95
-
 DO_SAMPLE = True
-
 MAX_INPUT_TOKENS = 6148
-
 MAX_NEW_TOKENS = 1024
-
 GENERATION_BATCH_SIZE = 1
-
 
 # ============================================================================
 # GRPO OPTIMIZATION
@@ -478,66 +408,41 @@ GRADIENT_ACCUMULATION_STEPS = 1
 MAX_GRAD_NORM = 1.0
 USE_MERGED_MODEL = False
 
-
 # ============================================================================
 # REWARD FUSION
 # ============================================================================
 
 """
 Only Blue receives interaction advantage in v1.
-
 For Blue candidate i:
-
-    A_final_i =
-        alpha * A_oracle_i
-        +
-        beta * A_interaction_i
-
+    A_final_i = alpha * A_oracle_i + beta * A_interaction_i
 
 A_oracle
 --------
-
 Computed over all G Blue candidates.
-
 
 A_interaction
 -------------
-
 Computed only over the Top-K Blue candidates that
 were actually challenged by Red.
 
-Candidates outside Top-K receive:
-
-    A_interaction = 0
-
+Candidates outside Top-K receive: A_interaction = 0
 
 Red Turn 1
 ----------
-
-Red receives:
-
-    A_final = A_oracle
-
+Red receives: A_final = A_oracle
 
 Red Turn 3
 ----------
-
 No GRPO update in v1.
-
 The Turn-3 response is used as interaction evidence
 and evaluation data.
 """
-
 ALPHA_MAX = 1.0
-
 BETA_MAX = 0.20
-
 BETA_START_MEAN = 0.60
-
 BETA_FULL_MEAN = 0.75
-
 USE_CONTINUOUS_BETA = True
-
 
 # ============================================================================
 # CONFIDENCE GATE
@@ -546,11 +451,8 @@ USE_CONTINUOUS_BETA = True
 """
 The confidence gate controls ONLY whether Blue receives
 Red's Turn-1 Attack_best as context.
-
 It does NOT disable Turn 3.
-
 If Red is sufficiently reliable for the current category:
-
     Blue sees:
 
         Repository
@@ -560,13 +462,8 @@ If Red is sufficiently reliable for the current category:
         Attack_best
 
 Otherwise:
-
     Blue receives an independent defense prompt:
-
-        Repository
-        +
-        Safe Scenario Context
-
+        Repository + Safe Scenario Context
 Turn 3 always happens after Blue generates and ranks
 its defense candidates.
 """
@@ -657,29 +554,19 @@ Reward:
 
 
 INTERACTION_REWARD_CORRECT_ATTACK = 1.0
-
 INTERACTION_REWARD_WRONG_ATTACK_NO_REMAINING = -1.0
-
 INTERACTION_REWARD_WRONG_ATTACK_REAL_REMAINING = 0.0
-
 INTERACTION_REWARD_NO_ATTACK_CORRECT = 1.0
-
 INTERACTION_REWARD_NO_ATTACK_MISSED = -1.0
-
-
 BLUE_REWARD_VALID_ATTACK_REMAINS = -1.0
-
 BLUE_REWARD_NO_ATTACK_REMAINS = 1.0
-
 
 # ============================================================================
 # INTERACTION ADVANTAGE NORMALIZATION
 # ============================================================================
 
 NORMALIZE_INTERACTION_ADVANTAGE = True
-
 INTERACTION_STD_EPSILON = 1e-8
-
 
 # ============================================================================
 # ORACLE
@@ -687,42 +574,27 @@ INTERACTION_STD_EPSILON = 1e-8
 
 """
 The Oracle uses two types of evaluation.
-
 1. Deterministic checks
 -----------------------
-
 Used wherever possible.
-
 Examples:
-
     - attack label
     - relevant files
     - format
     - structured fields
-
-
 2. Semantic judging
 -------------------
-
 Used only where deterministic comparison is insufficient.
-
 Examples:
-
     - reasoning quality
     - semantic correctness
     - hallucination / explanation quality
-
 This reduces the reward-hacking surface.
 """
-
 USE_DETERMINISTIC_CHECKS = True
-
 USE_SEMANTIC_ORACLE = True
-
 ORACLE_JUDGMENTS = 3
-
 ORACLE_TEMPERATURE = 0.2
-
 
 # ============================================================================
 # ORACLE SCORE WEIGHTS
@@ -730,28 +602,20 @@ ORACLE_TEMPERATURE = 0.2
 
 """
 Total Oracle reward:
-
     Attack label       = 0.30
     Root cause         = 0.20
     Relevant files     = 0.20
     Reasoning quality  = 0.20
     Format             = 0.10
-
 Total:
-
     1.00
 """
 
 ATTACK_LABEL_WEIGHT = 0.30
-
 ROOT_CAUSE_WEIGHT = 0.20
-
 RELEVANT_FILES_WEIGHT = 0.20
-
 REASONING_WEIGHT = 0.20
-
 FORMAT_WEIGHT = 0.10
-
 
 # ============================================================================
 # WEAKNESS MINING / SAMPLING
@@ -759,20 +623,15 @@ FORMAT_WEIGHT = 0.10
 
 """
 Weakness mining affects ONLY scenario sampling.
-
 It does NOT modify:
-
     - Oracle reward
     - GRPO mathematics
     - metadata.json
     - scenario files
     - candidate rewards
-
 Categories with sufficiently strong evidence of poor
 performance receive increased sampling probability.
-
 Sampling:
-
     70% → weak categories
     30% → random categories
 
@@ -781,17 +640,11 @@ can be considered for weakness-based prioritization.
 """
 
 USE_WEAKNESS_SAMPLING = True
-
 WEAK_CATEGORY_PROBABILITY = 0.70
-
 RANDOM_CATEGORY_PROBABILITY = 0.30
-
 WEAKNESS_MIN_EPISODES = 20
-
 WEAKNESS_ROLLING_WINDOW = 100
-
 WEAKNESS_USE_FAILURE_RATE = True
-
 
 # ============================================================================
 # TRAIN / VALIDATION / TEST BEHAVIOR
@@ -800,41 +653,30 @@ WEAKNESS_USE_FAILURE_RATE = True
 """
 TRAIN
 -----
-
 Generate candidates.
 Calculate rewards.
 Calculate advantages.
 Perform GRPO updates.
 
-
 VALIDATION
 ----------
-
 Generate candidates.
 Calculate Oracle rewards.
 Calculate interaction metrics.
-
 NO gradient updates.
-
 
 TEST
 ----
-
 Generate candidates.
 Calculate Oracle rewards.
 Calculate final evaluation metrics.
-
 NO gradient updates.
-
 Test scenarios NEVER influence training.
 """
 
 TRAIN_UPDATES_ENABLED = True
-
 VALIDATION_UPDATES_ENABLED = False
-
 TEST_UPDATES_ENABLED = False
-
 
 # ============================================================================
 # TESTING / EVALUATION
@@ -862,48 +704,29 @@ The final test can evaluate:
 """
 
 TEST_GENERATE_INTERACTION = True
-
 TEST_SAVE_RESPONSES = True
-
 TEST_SAVE_ORACLE_SCORES = True
-
 
 # ============================================================================
 # CHECKPOINTING
 # ============================================================================
 
 SAVE_EVERY_EPOCH = True
-
 SAVE_EVERY_N_EPISODES = 100
-
 SAVE_BEST_CHECKPOINT = True
-
-BEST_CHECKPOINT_METRIC = (
-    "combined_validation_reward"
-)
-
+BEST_CHECKPOINT_METRIC = ("combined_validation_reward")
 SAVE_OPTIMIZER_STATE = True
-
 SAVE_TRAINER_STATE = True
-
 
 # ============================================================================
 # HARDWARE
 # ============================================================================
 
-DEVICE = os.getenv(
-    "SOGARL_DEVICE",
-    "cuda",
-)
-
-USE_BF16 = True
-
-USE_FP16 = False
-
+DEVICE = os.getenv("SOGARL_DEVICE","cuda",)
+USE_BF16 = False
+USE_FP16 = True
 USE_GRADIENT_CHECKPOINTING = True
-
 USE_KV_CACHE_DURING_TRAINING = False
-
 
 # ============================================================================
 # MEMORY OPTIMIZATION
@@ -911,47 +734,34 @@ USE_KV_CACHE_DURING_TRAINING = False
 
 """
 These options are intentionally conservative.
-
 They can be enabled later if the selected GPU requires
 additional memory reduction.
 """
-
 USE_8BIT_OPTIMIZER = False
-
 USE_4BIT_MODEL = True
-
 MAX_MEMORY_GB = None
-
 
 # ============================================================================
 # LOGGING
 # ============================================================================
 
 LOG_LEVEL = "INFO"
-
 SAVE_EPISODE_JSONL = True
-
 SAVE_TRAINING_METRICS = True
-
 SAVE_CATEGORY_METRICS = True
-
 PRINT_EPISODE_SUMMARY = True
-
 LOG_EVERY_EPISODES = 1
-
 
 # ============================================================================
 # REPRODUCIBILITY
 # ============================================================================
 
 DETERMINISTIC_MODE = False
-
 # Runtime values consumed directly by RewardManager.
 ALPHA = 0.8
 ORACLE_ADVANTAGE_EPSILON = 1e-8
 CATEGORY_REWARD_HISTORY_SIZE = 100
 REPLAY_BUFFER_CAPACITY = 5000
-
 
 # ============================================================================
 # CONFIG VALIDATION
@@ -1039,31 +849,19 @@ def validate_config():
         + TEST_RATIO
     )
 
-    if abs(
-        split_total - 1.0
-    ) > 1e-6:
-
+    if abs(split_total - 1.0) > 1e-6:
         raise ValueError(
             "TRAIN_RATIO + VALIDATION_RATIO + "
-            "TEST_RATIO must equal 1.0."
-        )
+            "TEST_RATIO must equal 1.0.")
 
     # ------------------------------------------------------------------------
     # GRPO
     # ------------------------------------------------------------------------
 
     if NUM_ROLLOUTS < 2:
+        raise ValueError("NUM_ROLLOUTS must be at least 2.")
 
-        raise ValueError(
-            "NUM_ROLLOUTS must be at least 2."
-        )
-
-    if not (
-        1
-        <= TOP_K
-        <= NUM_ROLLOUTS
-    ):
-
+    if not (1<= TOP_K<= NUM_ROLLOUTS):
         raise ValueError(
             "TOP_K must be between "
             "1 and NUM_ROLLOUTS."
@@ -1120,29 +918,18 @@ def validate_config():
         + FORMAT_WEIGHT
     )
 
-    if abs(
-        oracle_weight_total - 1.0
-    ) > 1e-6:
-
-        raise ValueError(
-            "Oracle score weights must sum to 1.0."
-        )
+    if abs(oracle_weight_total - 1.0) > 1e-6:
+        raise ValueError("Oracle score weights must sum to 1.0.")
 
     # ------------------------------------------------------------------------
     # Generation
     # ------------------------------------------------------------------------
 
     if MAX_INPUT_TOKENS <= 0:
-
-        raise ValueError(
-            "MAX_INPUT_TOKENS must be positive."
-        )
+        raise ValueError("MAX_INPUT_TOKENS must be positive.")
 
     if MAX_NEW_TOKENS <= 0:
-
-        raise ValueError(
-            "MAX_NEW_TOKENS must be positive."
-        )
+        raise ValueError("MAX_NEW_TOKENS must be positive.")
 
     # ------------------------------------------------------------------------
     # Runtime / paths
@@ -1185,10 +972,7 @@ def validate_config():
     # ------------------------------------------------------------------------
 
     if TOP_K > NUM_ROLLOUTS:
-
-        raise ValueError(
-            "TOP_K cannot exceed NUM_ROLLOUTS."
-        )
+        raise ValueError("TOP_K cannot exceed NUM_ROLLOUTS.")
 
 
 # ============================================================================
@@ -1217,22 +1001,9 @@ def create_output_directories():
     """
     Create writable SOGARL output directories.
     """
-
-    paths = (
-        OUTPUTS_PATH,
-        CHECKPOINT_PATH,
-        REPLAY_PATH,
-        METRICS_PATH,
-        LOG_PATH,
-    )
-
+    paths = (OUTPUTS_PATH,CHECKPOINT_PATH,REPLAY_PATH,METRICS_PATH,LOG_PATH)
     for path in paths:
-
-        path.mkdir(
-            parents=True,
-            exist_ok=True,
-        )
-
+        path.mkdir(parents=True,exist_ok=True)
 
 # ============================================================================
 # CONFIGURATION DISPLAY
@@ -1244,93 +1015,28 @@ def print_config():
     """
 
     print("=" * 70)
-
-    print(
-        "SOGARL CONFIGURATION"
-    )
-
+    print("SOGARL CONFIGURATION")
     print("=" * 70)
-
-    print(
-        f"SOGARL ROOT : {SOGARL_ROOT}"
-    )
-
-    print(
-        f"Dataset     : {DATASET_PATH}"
-    )
-
-    print(
-        f"Red LoRA    : {RED_ADAPTER_PATH}"
-    )
-
-    print(
-        f"Blue LoRA   : {BLUE_ADAPTER_PATH}"
-    )
-
-    print(
-        f"Red merged  : {RED_MERGED_MODEL_PATH}"
-    )
-
-    print(
-        f"Blue merged : {BLUE_MERGED_MODEL_PATH}"
-    )
-
-    print(
-        f"Base model  : {BASE_MODEL_NAME}"
-    )
-
-    print(
-        f"Oracle      : {ORACLE_MODEL_NAME}"
-    )
-
+    print(f"SOGARL ROOT : {SOGARL_ROOT}")
+    print(f"Dataset     : {DATASET_PATH}")
+    print(f"Red LoRA    : {RED_ADAPTER_PATH}")
+    print(f"Blue LoRA   : {BLUE_ADAPTER_PATH}")
+    print(f"Red merged  : {RED_MERGED_MODEL_PATH}")
+    print(f"Blue merged : {BLUE_MERGED_MODEL_PATH}")
+    print(f"Base model  : {BASE_MODEL_NAME}")
+    print(f"Oracle      : {ORACLE_MODEL_NAME}")
     print()
-
-    print(
-        f"G           : {NUM_ROLLOUTS}"
-    )
-
-    print(
-        f"Top-K       : {TOP_K}"
-    )
-
-    print(
-        f"Epochs      : {NUM_EPOCHS}"
-    )
-
+    print(f"G           : {NUM_ROLLOUTS}")
+    print(f"Top-K       : {TOP_K}")
+    print(f"Epochs      : {NUM_EPOCHS}")
     print()
-
-    print(
-        f"Red LR      : {LEARNING_RATE_RED}"
-    )
-
-    print(
-        f"Blue LR     : {LEARNING_RATE_BLUE}"
-    )
-
-    print(
-        f"KL          : {KL_COEFFICIENT}"
-    )
-
-    print(
-        f"Beta max    : {BETA_MAX}"
-    )
-
+    print(f"Red LR      : {LEARNING_RATE_RED}")
+    print(f"Blue LR     : {LEARNING_RATE_BLUE}")
+    print(f"KL          : {KL_COEFFICIENT}")
+    print(f"Beta max    : {BETA_MAX}")
     print()
-
-    print(
-        f"Confidence  : {USE_CONFIDENCE_GATE}"
-    )
-
-    print(
-        f"Weakness    : {USE_WEAKNESS_SAMPLING}"
-    )
-
-    print(
-        f"Context     : {MAX_INPUT_TOKENS}"
-    )
-
-    print(
-        f"Device      : {DEVICE}"
-    )
-
+    print(f"Confidence  : {USE_CONFIDENCE_GATE}")
+    print(f"Weakness    : {USE_WEAKNESS_SAMPLING}")
+    print(f"Context     : {MAX_INPUT_TOKENS}")
+    print(f"Device      : {DEVICE}")
     print("=" * 70)
