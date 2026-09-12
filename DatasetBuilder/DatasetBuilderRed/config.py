@@ -7,7 +7,7 @@ Only edit values in this file.
 
 from pathlib import Path
 
-PROJECT_ROOT = Path(r"F:\Capstone")
+PROJECT_ROOT = Path(r"F:\SEM-7\Capstone")
 DATASET_ROOT = PROJECT_ROOT / "SFT"/ "SFT_Dataset"
 
 # ==========================================================

@@ -378,7 +378,7 @@ Blue defense candidate that was actually challenged.
 # GRPO ROLLOUTS
 # ============================================================================
 
-NUM_ROLLOUTS = 8
+NUM_ROLLOUTS = 5
 TOP_K = 3
 
 # ============================================================================
@@ -390,7 +390,7 @@ BLUE_TEMPERATURE = 0.8
 CHALLENGE_TEMPERATURE = 0.7
 TOP_P = 0.95
 DO_SAMPLE = True
-MAX_INPUT_TOKENS = 6148
+MAX_INPUT_TOKENS = 4096
 MAX_NEW_TOKENS = 1024
 GENERATION_BATCH_SIZE = 1
 
