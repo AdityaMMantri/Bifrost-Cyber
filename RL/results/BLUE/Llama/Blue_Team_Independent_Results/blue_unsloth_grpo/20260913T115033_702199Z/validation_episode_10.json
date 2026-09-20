@@ -1,0 +1,2332 @@
+[
+  {
+    "stage": "validation_episode_10",
+    "episode": null,
+    "epoch": null,
+    "scenario": "scenario_005",
+    "rollout": 1,
+    "metadata_path": "/kaggle/input/datasets/adityammantri/sogarl-code-data/SFT/SFT/SFT_Dataset/scenario_005/metadata.json",
+    "reference": "valid_defenses: [\"html_sanitization\", \"safe_dom_rendering\", \"sanitize_on_submission\"]\nrelevant_files: [\"files/backend/routes/review_routes.py\", \"files/backend/services/review_service.py\", \"files/frontend/src/pages/AdminDashboard.jsx\", \"files/frontend/src/pages/SubmitReview.jsx\", \"files/frontend/src/services/reviewService.js\"]",
+    "response": "valid_defenses: [\n  rate_limiting,\n  csrf_protection,\n  password_policy,\n  review_sanitization,\n  sensitive_data_redaction,\n  production_environment_separation\n]\n\nrelevant_files: [\n  files/backend/app.py,\n  files/backend/auth_routes.py,\n  files/backend/review_routes.py,\n  files/backend/review_service.py,\n  files/backend/newsletter_service.py,\n  files/backend/sanitize_html.py,\n  files/database/schema.sql,\n  files/frontend/src/pages/Login.jsx,\n  files/frontend/src/pages/SubmitReview.jsx,\n  files/frontend/src/services/reviewService.js\n]",
+    "complete": true,
+    "prompt_tokens": 3291,
+    "completion_tokens": 123,
+    "generation_seconds": 14.267621368999698,
+    "context_mode": "full",
+    "source_token_coverage": 1.0,
+    "reward": 0.08578178405761719,
+    "format": 1.0,
+    "actions": 0.04056056340535482,
+    "files": 0.26666666666666666,
+    "action_parseable": true,
+    "file_parseable": true,
+    "format_error": null,
+    "extraction_errors": {},
+    "extraction": {
+      "warnings": [],
+      "actions": {
+        "value": [
+          "rate limiting",
+          "csrf protection",
+          "password policy",
+          "review sanitization",
+          "sensitive data redaction",
+          "production environment separation"
+        ],
+        "parseable": true,
+        "error": null,
+        "keys": [
+          "valid_defenses"
+        ],
+        "style": "unquoted_array",
+        "raw_values": [
+          "[\n  rate_limiting,\n  csrf_protection,\n  password_policy,\n  review_sanitization,\n  sensitive_data_redaction,\n  production_environment_separation\n]"
+        ]
+      },
+      "files": {
+        "value": [
+          "files/backend/app.py",
+          "files/backend/auth_routes.py",
+          "files/backend/review_routes.py",
+          "files/backend/review_service.py",
+          "files/backend/newsletter_service.py",
+          "files/backend/sanitize_html.py",
+          "files/database/schema.sql",
+          "files/frontend/src/pages/Login.jsx",
+          "files/frontend/src/pages/SubmitReview.jsx",
+          "files/frontend/src/services/reviewService.js"
+        ],
+        "parseable": true,
+        "error": null,
+        "keys": [
+          "relevant_files"
+        ],
+        "style": "unquoted_array",
+        "raw_values": [
+          "[\n  files/backend/app.py,\n  files/backend/auth_routes.py,\n  files/backend/review_routes.py,\n  files/backend/review_service.py,\n  files/backend/newsletter_service.py,\n  files/backend/sanitize_html.py,\n  files/database/schema.sql,\n  files/frontend/src/pages/Login.jsx,\n  files/frontend/src/pages/SubmitReview.jsx,\n  files/frontend/src/services/reviewService.js\n]"
+        ]
+      }
+    },
+    "output_format": "unquoted_array/unquoted_array",
+    "comparison": {
+      "predicted_actions": [
+        "rate limiting",
+        "csrf protection",
+        "password policy",
+        "review sanitization",
+        "sensitive data redaction",
+        "production environment separation"
+      ],
+      "target_actions": [
+        "html sanitization",
+        "safe dom rendering",
+        "sanitize on submission"
+      ],
+      "action_status": "scored",
+      "file_status": "scored",
+      "action_matches": [
+        {
+          "predicted": "csrf protection",
+          "target": "html sanitization",
+          "kind": "semantic",
+          "cosine": 0.393842488527298,
+          "credit": 0.0
+        },
+        {
+          "predicted": "password policy",
+          "target": "safe dom rendering",
+          "kind": "semantic",
+          "cosine": 0.09813699126243591,
+          "credit": 0.0
+        },
+        {
+          "predicted": "review sanitization",
+          "target": "sanitize on submission",
+          "kind": "semantic",
+          "cosine": 0.6730090379714966,
+          "credit": 0.18252253532409668
+        }
+      ],
+      "unmatched_actions": [
+        "csrf protection",
+        "password policy",
+        "production environment separation",
+        "rate limiting",
+        "sensitive data redaction"
+      ],
+      "missing_actions": [
+        "html sanitization",
+        "safe dom rendering"
+      ],
+      "predicted_files": [
+        "files/backend/app.py",
+        "files/backend/auth_routes.py",
+        "files/backend/review_routes.py",
+        "files/backend/review_service.py",
+        "files/backend/newsletter_service.py",
+        "files/backend/sanitize_html.py",
+        "files/database/schema.sql",
+        "files/frontend/src/pages/Login.jsx",
+        "files/frontend/src/pages/SubmitReview.jsx",
+        "files/frontend/src/services/reviewService.js"
+      ],
+      "target_files": [
+        "files/backend/routes/review_routes.py",
+        "files/backend/services/review_service.py",
+        "files/frontend/src/pages/AdminDashboard.jsx",
+        "files/frontend/src/pages/SubmitReview.jsx",
+        "files/frontend/src/services/reviewService.js"
+      ],
+      "matched_files": [
+        "files/frontend/src/pages/SubmitReview.jsx",
+        "files/frontend/src/services/reviewService.js"
+      ],
+      "extra_files": [
+        "files/backend/app.py",
+        "files/backend/auth_routes.py",
+        "files/backend/newsletter_service.py",
+        "files/backend/review_routes.py",
+        "files/backend/review_service.py",
+        "files/backend/sanitize_html.py",
+        "files/database/schema.sql",
+        "files/frontend/src/pages/Login.jsx"
+      ],
+      "missing_files": [
+        "files/backend/routes/review_routes.py",
+        "files/backend/services/review_service.py",
+        "files/frontend/src/pages/AdminDashboard.jsx"
+      ],
+      "weighted_action_reward": 0.03244845072428386,
+      "weighted_file_reward": 0.05333333333333334
+    },
+    "reward_before_truncation_gate": 0.08578178405761719,
+    "completion_token_ids": [
+      1930,
+      8001,
+      4377,
+      25,
+      2330,
+      220,
+      4478,
+      15106,
+      287,
+      345,
+      220,
+      36622,
+      2602,
+      40241,
+      345,
+      220,
+      3636,
+      23613,
+      345,
+      220,
+      3477,
+      88966,
+      275,
+      2065,
+      345,
+      220,
+      16614,
+      1807,
+      27150,
+      1335,
+      345,
+      220,
+      5788,
+      52874,
+      3537,
+      36235,
+      198,
+      2595,
+      98673,
+      11171,
+      25,
+      2330,
+      220,
+      3626,
+      71120,
+      10867,
+      7345,
+      345,
+      220,
+      3626,
+      71120,
+      17823,
+      65414,
+      7345,
+      345,
+      220,
+      3626,
+      71120,
+      10991,
+      1068,
+      65414,
+      7345,
+      345,
+      220,
+      3626,
+      71120,
+      10991,
+      1068,
+      12547,
+      7345,
+      345,
+      220,
+      3626,
+      71120,
+      28455,
+      9638,
+      12547,
+      7345,
+      345,
+      220,
+      3626,
+      71120,
+      2754,
+      59752,
+      9759,
+      7345,
+      345,
+      220,
+      3626,
+      42705,
+      62242,
+      10251,
+      345,
+      220,
+      3626,
+      74263,
+      13743,
+      30178,
+      55903,
+      42040,
+      345,
+      220,
+      3626,
+      74263,
+      13743,
+      30178,
+      14,
+      9066,
+      19997,
+      42040,
+      345,
+      220,
+      3626,
+      74263,
+      13743,
+      23054,
+      10991,
+      1068,
+      1898,
+      2927,
+      198,
+      60,
+      128009
+    ]
+  },
+  {
+    "stage": "validation_episode_10",
+    "episode": null,
+    "epoch": null,
+    "scenario": "scenario_012",
+    "rollout": 1,
+    "metadata_path": "/kaggle/input/datasets/adityammantri/sogarl-code-data/SFT/SFT/SFT_Dataset/scenario_012/metadata.json",
+    "reference": "valid_defenses: [\"explicit_permission_validation\", \"least_privilege_service_access\", \"service_identity_verification\", \"service_level_authorization\"]\nrelevant_files: [\"files/configs/services.yaml\", \"files/services/analytics/grpc_client.go\", \"files/services/analytics/token_factory.go\", \"files/services/billing/auth_middleware.go\", \"files/services/billing/invoice_service.go\", \"files/shared/service_identity.go\", \"files/shared/trust_policy.go\"]",
+    "response": "valid_defenses: [\"service_level_authorization\", \"network_segmentation\", \"service_identity_validation\"]\nrelevant_files: [\"files/configs/services.yaml\", \"files/deployment/istio.yaml\", \"files/shared/service_identity.go\"]",
+    "complete": true,
+    "prompt_tokens": 4322,
+    "completion_tokens": 47,
+    "generation_seconds": 8.895889848000024,
+    "context_mode": "full",
+    "source_token_coverage": 1.0,
+    "reward": 0.4880976894923619,
+    "format": 1.0,
+    "actions": 0.5101221118654523,
+    "files": 0.4,
+    "action_parseable": true,
+    "file_parseable": true,
+    "format_error": null,
+    "extraction_errors": {},
+    "extraction": {
+      "warnings": [],
+      "actions": {
+        "value": [
+          "service level authorization",
+          "network segmentation",
+          "service identity validation"
+        ],
+        "parseable": true,
+        "error": null,
+        "keys": [
+          "valid_defenses"
+        ],
+        "style": "json_array",
+        "raw_values": [
+          "[\"service_level_authorization\", \"network_segmentation\", \"service_identity_validation\"]"
+        ]
+      },
+      "files": {
+        "value": [
+          "files/configs/services.yaml",
+          "files/deployment/istio.yaml",
+          "files/shared/service_identity.go"
+        ],
+        "parseable": true,
+        "error": null,
+        "keys": [
+          "relevant_files"
+        ],
+        "style": "json_array",
+        "raw_values": [
+          "[\"files/configs/services.yaml\", \"files/deployment/istio.yaml\", \"files/shared/service_identity.go\"]"
+        ]
+      }
+    },
+    "output_format": "json_array/json_array",
+    "comparison": {
+      "predicted_actions": [
+        "service level authorization",
+        "network segmentation",
+        "service identity validation"
+      ],
+      "target_actions": [
+        "explicit permission validation",
+        "least privilege service access",
+        "service identity verification",
+        "service level authorization"
+      ],
+      "action_status": "scored",
+      "file_status": "scored",
+      "action_matches": [
+        {
+          "predicted": "service level authorization",
+          "target": "service level authorization",
+          "kind": "exact",
+          "cosine": 1.0,
+          "credit": 1.0
+        },
+        {
+          "predicted": "network segmentation",
+          "target": "explicit permission validation",
+          "kind": "semantic",
+          "cosine": 0.057829633355140686,
+          "credit": 0.0
+        },
+        {
+          "predicted": "service identity validation",
+          "target": "service identity verification",
+          "kind": "semantic",
+          "cosine": 0.9141709804534912,
+          "credit": 0.7854273915290833
+        }
+      ],
+      "unmatched_actions": [
+        "network segmentation"
+      ],
+      "missing_actions": [
+        "explicit permission validation",
+        "least privilege service access"
+      ],
+      "predicted_files": [
+        "files/configs/services.yaml",
+        "files/deployment/istio.yaml",
+        "files/shared/service_identity.go"
+      ],
+      "target_files": [
+        "files/configs/services.yaml",
+        "files/services/analytics/grpc_client.go",
+        "files/services/analytics/token_factory.go",
+        "files/services/billing/auth_middleware.go",
+        "files/services/billing/invoice_service.go",
+        "files/shared/service_identity.go",
+        "files/shared/trust_policy.go"
+      ],
+      "matched_files": [
+        "files/configs/services.yaml",
+        "files/shared/service_identity.go"
+      ],
+      "extra_files": [
+        "files/deployment/istio.yaml"
+      ],
+      "missing_files": [
+        "files/services/analytics/grpc_client.go",
+        "files/services/analytics/token_factory.go",
+        "files/services/billing/auth_middleware.go",
+        "files/services/billing/invoice_service.go",
+        "files/shared/trust_policy.go"
+      ],
+      "weighted_action_reward": 0.40809768949236186,
+      "weighted_file_reward": 0.08000000000000002
+    },
+    "reward_before_truncation_gate": 0.4880976894923619,
+    "completion_token_ids": [
+      1930,
+      8001,
+      4377,
+      25,
+      4482,
+      8095,
+      8438,
+      23790,
+      2065,
+      498,
+      330,
+      17969,
+      29161,
+      367,
+      498,
+      330,
+      8095,
+      47344,
+      19980,
+      7171,
+      98673,
+      11171,
+      25,
+      4482,
+      7346,
+      15072,
+      82,
+      23054,
+      34506,
+      498,
+      330,
+      7346,
+      23365,
+      53899,
+      14,
+      380,
+      822,
+      34506,
+      498,
+      330,
+      7346,
+      27038,
+      35286,
+      47344,
+      18487,
+      1365,
+      128009
+    ]
+  },
+  {
+    "stage": "validation_episode_10",
+    "episode": null,
+    "epoch": null,
+    "scenario": "scenario_028",
+    "rollout": 1,
+    "metadata_path": "/kaggle/input/datasets/adityammantri/sogarl-code-data/SFT/SFT/SFT_Dataset/scenario_028/metadata.json",
+    "reference": "valid_defenses: [\"aggregation_boundary_preservation\", \"tenant_aware_bucket_identity\", \"tenant_scoped_aggregation_keys\", \"tenant_scoped_metrics_storage\"]\nrelevant_files: [\"files/kafka/ImpressionConsumer.cpp\", \"files/models/AdEvent.proto\", \"files/models/AnalyticsBucket.cpp\", \"files/repositories/AnalyticsRepository.rs\", \"files/repositories/CampaignRepository.rs\", \"files/services/AnalyticsQueryService.scala\", \"files/streaming/AggregationCoordinator.cpp\", \"files/streaming/AnalyticsAggregationWorker.cpp\", \"files/streaming/MetricsBucketBuilder.cpp\"]",
+    "response": "valid_defenses: [\"tenant_isolation\", \"ownership_validation\", \"aggregation_boundary_enforcement\"]\nrelevant_files: [\"files/config/analytics-policy.yaml\", \"files/kafka/ImpressionConsumer.cpp\", \"files/models/AdEvent.proto\", \"files/repositories/CampaignRepository.rs\", \"files/services/AnalyticsQueryService.scala\", \"files/streaming/AggregationCoordinator.cpp\", \"files/streaming/MetricsBucketBuilder.cpp\"]",
+    "complete": true,
+    "prompt_tokens": 6518,
+    "completion_tokens": 88,
+    "generation_seconds": 17.47104097700003,
+    "context_mode": "full",
+    "source_token_coverage": 1.0,
+    "reward": 0.2692876270839146,
+    "format": 1.0,
+    "actions": 0.14910953385489328,
+    "files": 0.75,
+    "action_parseable": true,
+    "file_parseable": true,
+    "format_error": null,
+    "extraction_errors": {},
+    "extraction": {
+      "warnings": [],
+      "actions": {
+        "value": [
+          "tenant isolation",
+          "ownership validation",
+          "aggregation boundary enforcement"
+        ],
+        "parseable": true,
+        "error": null,
+        "keys": [
+          "valid_defenses"
+        ],
+        "style": "json_array",
+        "raw_values": [
+          "[\"tenant_isolation\", \"ownership_validation\", \"aggregation_boundary_enforcement\"]"
+        ]
+      },
+      "files": {
+        "value": [
+          "files/config/analytics-policy.yaml",
+          "files/kafka/ImpressionConsumer.cpp",
+          "files/models/AdEvent.proto",
+          "files/repositories/CampaignRepository.rs",
+          "files/services/AnalyticsQueryService.scala",
+          "files/streaming/AggregationCoordinator.cpp",
+          "files/streaming/MetricsBucketBuilder.cpp"
+        ],
+        "parseable": true,
+        "error": null,
+        "keys": [
+          "relevant_files"
+        ],
+        "style": "json_array",
+        "raw_values": [
+          "[\"files/config/analytics-policy.yaml\", \"files/kafka/ImpressionConsumer.cpp\", \"files/models/AdEvent.proto\", \"files/repositories/CampaignRepository.rs\", \"files/services/AnalyticsQueryService.scala\", \"files/streaming/AggregationCoordinator.cpp\", \"files/streaming/MetricsBucketBuilder.cpp\"]"
+        ]
+      }
+    },
+    "output_format": "json_array/json_array",
+    "comparison": {
+      "predicted_actions": [
+        "tenant isolation",
+        "ownership validation",
+        "aggregation boundary enforcement"
+      ],
+      "target_actions": [
+        "aggregation boundary preservation",
+        "tenant aware bucket identity",
+        "tenant scoped aggregation keys",
+        "tenant scoped metrics storage"
+      ],
+      "action_status": "scored",
+      "file_status": "scored",
+      "action_matches": [
+        {
+          "predicted": "aggregation boundary enforcement",
+          "target": "aggregation boundary preservation",
+          "kind": "semantic",
+          "cosine": 0.8087533712387085,
+          "credit": 0.5218833684921265
+        },
+        {
+          "predicted": "ownership validation",
+          "target": "tenant aware bucket identity",
+          "kind": "semantic",
+          "cosine": 0.34129589796066284,
+          "credit": 0.0
+        },
+        {
+          "predicted": "tenant isolation",
+          "target": "tenant scoped aggregation keys",
+          "kind": "semantic",
+          "cosine": 0.43336042761802673,
+          "credit": 0.0
+        }
+      ],
+      "unmatched_actions": [
+        "ownership validation",
+        "tenant isolation"
+      ],
+      "missing_actions": [
+        "tenant aware bucket identity",
+        "tenant scoped aggregation keys",
+        "tenant scoped metrics storage"
+      ],
+      "predicted_files": [
+        "files/config/analytics-policy.yaml",
+        "files/kafka/ImpressionConsumer.cpp",
+        "files/models/AdEvent.proto",
+        "files/repositories/CampaignRepository.rs",
+        "files/services/AnalyticsQueryService.scala",
+        "files/streaming/AggregationCoordinator.cpp",
+        "files/streaming/MetricsBucketBuilder.cpp"
+      ],
+      "target_files": [
+        "files/kafka/ImpressionConsumer.cpp",
+        "files/models/AdEvent.proto",
+        "files/models/AnalyticsBucket.cpp",
+        "files/repositories/AnalyticsRepository.rs",
+        "files/repositories/CampaignRepository.rs",
+        "files/services/AnalyticsQueryService.scala",
+        "files/streaming/AggregationCoordinator.cpp",
+        "files/streaming/AnalyticsAggregationWorker.cpp",
+        "files/streaming/MetricsBucketBuilder.cpp"
+      ],
+      "matched_files": [
+        "files/kafka/ImpressionConsumer.cpp",
+        "files/models/AdEvent.proto",
+        "files/repositories/CampaignRepository.rs",
+        "files/services/AnalyticsQueryService.scala",
+        "files/streaming/AggregationCoordinator.cpp",
+        "files/streaming/MetricsBucketBuilder.cpp"
+      ],
+      "extra_files": [
+        "files/config/analytics-policy.yaml"
+      ],
+      "missing_files": [
+        "files/models/AnalyticsBucket.cpp",
+        "files/repositories/AnalyticsRepository.rs",
+        "files/streaming/AnalyticsAggregationWorker.cpp"
+      ],
+      "weighted_action_reward": 0.11928762708391463,
+      "weighted_file_reward": 0.15000000000000002
+    },
+    "reward_before_truncation_gate": 0.2692876270839146,
+    "completion_token_ids": [
+      1930,
+      8001,
+      4377,
+      25,
+      4482,
+      45019,
+      7037,
+      36062,
+      498,
+      330,
+      79247,
+      19980,
+      498,
+      330,
+      351,
+      35542,
+      55104,
+      6337,
+      11167,
+      7171,
+      98673,
+      11171,
+      25,
+      4482,
+      7346,
+      15072,
+      56592,
+      18014,
+      67520,
+      34506,
+      498,
+      330,
+      7346,
+      14441,
+      22645,
+      14,
+      26282,
+      11433,
+      31068,
+      7356,
+      498,
+      330,
+      7346,
+      20883,
+      14,
+      2654,
+      1585,
+      58422,
+      498,
+      330,
+      7346,
+      10991,
+      17734,
+      11547,
+      18666,
+      4727,
+      26721,
+      498,
+      330,
+      7346,
+      23054,
+      14,
+      61639,
+      2929,
+      1898,
+      65775,
+      498,
+      330,
+      7346,
+      88534,
+      287,
+      14,
+      9219,
+      35542,
+      65404,
+      7356,
+      498,
+      330,
+      7346,
+      88534,
+      287,
+      10482,
+      13776,
+      37118,
+      3377,
+      7356,
+      1365,
+      128009
+    ]
+  },
+  {
+    "stage": "validation_episode_10",
+    "episode": null,
+    "epoch": null,
+    "scenario": "scenario_030",
+    "rollout": 1,
+    "metadata_path": "/kaggle/input/datasets/adityammantri/sogarl-code-data/SFT/SFT/SFT_Dataset/scenario_030/metadata.json",
+    "reference": "valid_defenses: [\"authorization_event_epoch_binding\", \"current_epoch_reverification\", \"lease_epoch_authorization_validation\", \"scheduler_epoch_enforcement\"]\nrelevant_files: [\"files/command_bus/LeaseCommandHandler.fs\", \"files/command_bus/ReservationCommandHandler.fs\", \"files/event_store/ReservationEventStore.rs\", \"files/messages/ReservationGranted.fbs\", \"files/models/LeaseEpoch.fs\", \"files/models/Reservation.fs\", \"files/orchestrators/UplinkScheduler.rs\", \"files/orchestrators/WindowAllocator.rs\", \"files/projections/ActiveReservationProjection.rs\", \"files/projections/LeaseEpochProjection.rs\", \"files/runtime/JetStreamConsumer.rs\"]",
+    "response": "valid_defenses: [\n    lease_epoch_advancement,\n    reservation_replay_protection,\n    transmission_window_validity,\n    uplink_scheduler_authorization,\n    window_allocator_overlap_protection\n]\n\nrelevant_files: [\n    files/command_bus/LeaseCommandHandler.fs,\n    files/command_bus/ReservationCommandHandler.fs,\n    files/config/leasing-policy.yaml,\n    files/orchestrators/UplinkScheduler.rs,\n    files/projections/ActiveReservationProjection.rs,\n    files/projections/LeaseEpochProjection.rs,\n    files/projections/UplinkProjection.rs\n]",
+    "complete": true,
+    "prompt_tokens": 6374,
+    "completion_tokens": 117,
+    "generation_seconds": 20.2266896189999,
+    "context_mode": "full",
+    "source_token_coverage": 1.0,
+    "reward": 0.16927872763739693,
+    "format": 1.0,
+    "actions": 0.07270952065785725,
+    "files": 0.5555555555555556,
+    "action_parseable": true,
+    "file_parseable": true,
+    "format_error": null,
+    "extraction_errors": {},
+    "extraction": {
+      "warnings": [],
+      "actions": {
+        "value": [
+          "lease epoch advancement",
+          "reservation replay protection",
+          "transmission window validity",
+          "uplink scheduler authorization",
+          "window allocator overlap protection"
+        ],
+        "parseable": true,
+        "error": null,
+        "keys": [
+          "valid_defenses"
+        ],
+        "style": "unquoted_array",
+        "raw_values": [
+          "[\n    lease_epoch_advancement,\n    reservation_replay_protection,\n    transmission_window_validity,\n    uplink_scheduler_authorization,\n    window_allocator_overlap_protection\n]"
+        ]
+      },
+      "files": {
+        "value": [
+          "files/command_bus/LeaseCommandHandler.fs",
+          "files/command_bus/ReservationCommandHandler.fs",
+          "files/config/leasing-policy.yaml",
+          "files/orchestrators/UplinkScheduler.rs",
+          "files/projections/ActiveReservationProjection.rs",
+          "files/projections/LeaseEpochProjection.rs",
+          "files/projections/UplinkProjection.rs"
+        ],
+        "parseable": true,
+        "error": null,
+        "keys": [
+          "relevant_files"
+        ],
+        "style": "unquoted_array",
+        "raw_values": [
+          "[\n    files/command_bus/LeaseCommandHandler.fs,\n    files/command_bus/ReservationCommandHandler.fs,\n    files/config/leasing-policy.yaml,\n    files/orchestrators/UplinkScheduler.rs,\n    files/projections/ActiveReservationProjection.rs,\n    files/projections/LeaseEpochProjection.rs,\n    files/projections/UplinkProjection.rs\n]"
+        ]
+      }
+    },
+    "output_format": "unquoted_array/unquoted_array",
+    "comparison": {
+      "predicted_actions": [
+        "lease epoch advancement",
+        "reservation replay protection",
+        "transmission window validity",
+        "uplink scheduler authorization",
+        "window allocator overlap protection"
+      ],
+      "target_actions": [
+        "authorization event epoch binding",
+        "current epoch reverification",
+        "lease epoch authorization validation",
+        "scheduler epoch enforcement"
+      ],
+      "action_status": "scored",
+      "file_status": "scored",
+      "action_matches": [
+        {
+          "predicted": "lease epoch advancement",
+          "target": "lease epoch authorization validation",
+          "kind": "semantic",
+          "cosine": 0.730877161026001,
+          "credit": 0.32719284296035767
+        },
+        {
+          "predicted": "reservation replay protection",
+          "target": "authorization event epoch binding",
+          "kind": "semantic",
+          "cosine": 0.18770194053649902,
+          "credit": 0.0
+        },
+        {
+          "predicted": "transmission window validity",
+          "target": "current epoch reverification",
+          "kind": "semantic",
+          "cosine": 0.18107964098453522,
+          "credit": 0.0
+        },
+        {
+          "predicted": "uplink scheduler authorization",
+          "target": "scheduler epoch enforcement",
+          "kind": "semantic",
+          "cosine": 0.4043617248535156,
+          "credit": 0.0
+        }
+      ],
+      "unmatched_actions": [
+        "reservation replay protection",
+        "transmission window validity",
+        "uplink scheduler authorization",
+        "window allocator overlap protection"
+      ],
+      "missing_actions": [
+        "authorization event epoch binding",
+        "current epoch reverification",
+        "scheduler epoch enforcement"
+      ],
+      "predicted_files": [
+        "files/command_bus/LeaseCommandHandler.fs",
+        "files/command_bus/ReservationCommandHandler.fs",
+        "files/config/leasing-policy.yaml",
+        "files/orchestrators/UplinkScheduler.rs",
+        "files/projections/ActiveReservationProjection.rs",
+        "files/projections/LeaseEpochProjection.rs",
+        "files/projections/UplinkProjection.rs"
+      ],
+      "target_files": [
+        "files/command_bus/LeaseCommandHandler.fs",
+        "files/command_bus/ReservationCommandHandler.fs",
+        "files/event_store/ReservationEventStore.rs",
+        "files/messages/ReservationGranted.fbs",
+        "files/models/LeaseEpoch.fs",
+        "files/models/Reservation.fs",
+        "files/orchestrators/UplinkScheduler.rs",
+        "files/orchestrators/WindowAllocator.rs",
+        "files/projections/ActiveReservationProjection.rs",
+        "files/projections/LeaseEpochProjection.rs",
+        "files/runtime/JetStreamConsumer.rs"
+      ],
+      "matched_files": [
+        "files/command_bus/LeaseCommandHandler.fs",
+        "files/command_bus/ReservationCommandHandler.fs",
+        "files/orchestrators/UplinkScheduler.rs",
+        "files/projections/ActiveReservationProjection.rs",
+        "files/projections/LeaseEpochProjection.rs"
+      ],
+      "extra_files": [
+        "files/config/leasing-policy.yaml",
+        "files/projections/UplinkProjection.rs"
+      ],
+      "missing_files": [
+        "files/event_store/ReservationEventStore.rs",
+        "files/messages/ReservationGranted.fbs",
+        "files/models/LeaseEpoch.fs",
+        "files/models/Reservation.fs",
+        "files/orchestrators/WindowAllocator.rs",
+        "files/runtime/JetStreamConsumer.rs"
+      ],
+      "weighted_action_reward": 0.058167616526285805,
+      "weighted_file_reward": 0.11111111111111112
+    },
+    "reward_before_truncation_gate": 0.16927872763739693,
+    "completion_token_ids": [
+      1930,
+      8001,
+      4377,
+      25,
+      2330,
+      262,
+      26120,
+      21339,
+      36756,
+      16887,
+      345,
+      262,
+      28767,
+      1311,
+      1387,
+      2602,
+      40241,
+      345,
+      262,
+      18874,
+      12856,
+      8501,
+      488,
+      345,
+      262,
+      709,
+      2125,
+      54746,
+      23790,
+      2065,
+      345,
+      262,
+      3321,
+      58010,
+      66894,
+      2602,
+      40241,
+      198,
+      2595,
+      98673,
+      11171,
+      25,
+      2330,
+      262,
+      3626,
+      84305,
+      26492,
+      14,
+      2356,
+      521,
+      4153,
+      3126,
+      42455,
+      345,
+      262,
+      3626,
+      84305,
+      26492,
+      14,
+      56048,
+      4153,
+      3126,
+      42455,
+      345,
+      262,
+      3626,
+      15072,
+      14,
+      84652,
+      67520,
+      34506,
+      345,
+      262,
+      3626,
+      5255,
+      331,
+      15462,
+      3046,
+      63110,
+      501,
+      771,
+      39978,
+      26721,
+      345,
+      262,
+      3626,
+      18493,
+      25593,
+      14,
+      5847,
+      56048,
+      47421,
+      26721,
+      345,
+      262,
+      3626,
+      18493,
+      25593,
+      14,
+      2356,
+      521,
+      45438,
+      47421,
+      26721,
+      345,
+      262,
+      3626,
+      18493,
+      25593,
+      63110,
+      501,
+      771,
+      47421,
+      26721,
+      198,
+      60,
+      128009
+    ]
+  },
+  {
+    "stage": "validation_episode_10",
+    "episode": null,
+    "epoch": null,
+    "scenario": "scenario_055",
+    "rollout": 1,
+    "metadata_path": "/kaggle/input/datasets/adityammantri/sogarl-code-data/SFT/SFT/SFT_Dataset/scenario_055/metadata.json",
+    "reference": "valid_defenses: [\"canonical_template_provenance_preservation\", \"dual_attribute_secret_authorization\", \"operational_template_provenance_verification\", \"template_identity_integrity_validation\"]\nrelevant_files: [\"files/llm/LiteLLMGateway.py\", \"files/models/Operationalprompt.kt\", \"files/prompt/PromptBuilder.kt\", \"files/prompt/PromptCompiler.kt\", \"files/prompt/TemplateVariable.kt\", \"files/retrieval/ContextAssembler.py\", \"files/secrets/SecretResolver.cs\", \"files/secrets/VaultClient.cs\", \"files/security/PromptPolicy.kt\", \"files/templating/TemplateResolver.rs\", \"files/templating/VariableRegistry.rs\"]",
+    "response": "valid_defenses: [secret_provenance_preservation, template_variable_origin_validation, access_tier_enforcement]\nrelevant_files: [files/prompt/TemplateVariable.kt, files/repositories/TemplateRepository.rs, files/security/DocumentAuthorizer.py]",
+    "complete": true,
+    "prompt_tokens": 8192,
+    "completion_tokens": 53,
+    "generation_seconds": 16.474405113999637,
+    "context_mode": "truncated",
+    "source_token_coverage": 0.2860886229418436,
+    "reward": 0.1149026598249163,
+    "format": 1.0,
+    "actions": 0.10791403906685966,
+    "files": 0.14285714285714285,
+    "action_parseable": true,
+    "file_parseable": true,
+    "format_error": null,
+    "extraction_errors": {},
+    "extraction": {
+      "warnings": [],
+      "actions": {
+        "value": [
+          "secret provenance preservation",
+          "template variable origin validation",
+          "access tier enforcement"
+        ],
+        "parseable": true,
+        "error": null,
+        "keys": [
+          "valid_defenses"
+        ],
+        "style": "unquoted_array",
+        "raw_values": [
+          "[secret_provenance_preservation, template_variable_origin_validation, access_tier_enforcement]"
+        ]
+      },
+      "files": {
+        "value": [
+          "files/prompt/TemplateVariable.kt",
+          "files/repositories/TemplateRepository.rs",
+          "files/security/DocumentAuthorizer.py"
+        ],
+        "parseable": true,
+        "error": null,
+        "keys": [
+          "relevant_files"
+        ],
+        "style": "unquoted_array",
+        "raw_values": [
+          "[files/prompt/TemplateVariable.kt, files/repositories/TemplateRepository.rs, files/security/DocumentAuthorizer.py]"
+        ]
+      }
+    },
+    "output_format": "unquoted_array/unquoted_array",
+    "comparison": {
+      "predicted_actions": [
+        "secret provenance preservation",
+        "template variable origin validation",
+        "access tier enforcement"
+      ],
+      "target_actions": [
+        "canonical template provenance preservation",
+        "dual attribute secret authorization",
+        "operational template provenance verification",
+        "template identity integrity validation"
+      ],
+      "action_status": "scored",
+      "file_status": "scored",
+      "action_matches": [
+        {
+          "predicted": "access tier enforcement",
+          "target": "dual attribute secret authorization",
+          "kind": "semantic",
+          "cosine": 0.36623936891555786,
+          "credit": 0.0
+        },
+        {
+          "predicted": "secret provenance preservation",
+          "target": "canonical template provenance preservation",
+          "kind": "semantic",
+          "cosine": 0.7510796785354614,
+          "credit": 0.3776991367340088
+        },
+        {
+          "predicted": "template variable origin validation",
+          "target": "operational template provenance verification",
+          "kind": "semantic",
+          "cosine": 0.33772414922714233,
+          "credit": 0.0
+        }
+      ],
+      "unmatched_actions": [
+        "access tier enforcement",
+        "template variable origin validation"
+      ],
+      "missing_actions": [
+        "dual attribute secret authorization",
+        "operational template provenance verification",
+        "template identity integrity validation"
+      ],
+      "predicted_files": [
+        "files/prompt/TemplateVariable.kt",
+        "files/repositories/TemplateRepository.rs",
+        "files/security/DocumentAuthorizer.py"
+      ],
+      "target_files": [
+        "files/llm/LiteLLMGateway.py",
+        "files/models/Operationalprompt.kt",
+        "files/prompt/PromptBuilder.kt",
+        "files/prompt/PromptCompiler.kt",
+        "files/prompt/TemplateVariable.kt",
+        "files/retrieval/ContextAssembler.py",
+        "files/secrets/SecretResolver.cs",
+        "files/secrets/VaultClient.cs",
+        "files/security/PromptPolicy.kt",
+        "files/templating/TemplateResolver.rs",
+        "files/templating/VariableRegistry.rs"
+      ],
+      "matched_files": [
+        "files/prompt/TemplateVariable.kt"
+      ],
+      "extra_files": [
+        "files/repositories/TemplateRepository.rs",
+        "files/security/DocumentAuthorizer.py"
+      ],
+      "missing_files": [
+        "files/llm/LiteLLMGateway.py",
+        "files/models/Operationalprompt.kt",
+        "files/prompt/PromptBuilder.kt",
+        "files/prompt/PromptCompiler.kt",
+        "files/retrieval/ContextAssembler.py",
+        "files/secrets/SecretResolver.cs",
+        "files/secrets/VaultClient.cs",
+        "files/security/PromptPolicy.kt",
+        "files/templating/TemplateResolver.rs",
+        "files/templating/VariableRegistry.rs"
+      ],
+      "weighted_action_reward": 0.08633123125348774,
+      "weighted_file_reward": 0.02857142857142857
+    },
+    "reward_before_truncation_gate": 0.1149026598249163,
+    "completion_token_ids": [
+      1930,
+      8001,
+      4377,
+      25,
+      510,
+      21107,
+      2602,
+      1055,
+      685,
+      33216,
+      8943,
+      11,
+      3896,
+      14977,
+      35143,
+      19980,
+      11,
+      2680,
+      530,
+      1291,
+      6337,
+      11167,
+      933,
+      98673,
+      11171,
+      25,
+      510,
+      7346,
+      4420,
+      15091,
+      14,
+      7423,
+      7983,
+      5314,
+      83,
+      11,
+      3626,
+      10991,
+      17734,
+      14,
+      7423,
+      4727,
+      26721,
+      11,
+      3626,
+      72522,
+      14,
+      7676,
+      7279,
+      3213,
+      7345,
+      60,
+      128009
+    ]
+  },
+  {
+    "stage": "validation_episode_10",
+    "episode": null,
+    "epoch": null,
+    "scenario": "scenario_065",
+    "rollout": 1,
+    "metadata_path": "/kaggle/input/datasets/adityammantri/sogarl-code-data/SFT/SFT/SFT_Dataset/scenario_065/metadata.json",
+    "reference": "valid_defenses: [\"certificate_issuance_lineage_integrity_verification\"]\nrelevant_files: [\"files/approval/IssuedWorkloadIdentity.cr\", \"files/directory/IdentityDirectory.jl\", \"files/distribution/IdentityPublisher.erl\", \"files/distribution/RuntimeIdentity.erl\", \"files/runtime/MTLSRuntime.nim\"]",
+    "response": "valid_defenses: [caller_validation, workload_validation, certificate_validation, policy_validation, issuance_generation_validation, runtime_identity_validation, session_distributor_validation, identity_directory_validation, identity_lookup_validation, identity_publisher_validation]\nrelevant_files: [files/api/IdentityApi.lua, files/api/IdentityRequest.lua, files/approval/IdentityApprover.cr, files/approval/IdentityWorkflow.cr, files/approval/IssuedWorkloadIdentity.cr, files/broker/SessionDistributor.rkt, files/directory/IdentityDirectory.jl, files/directory/IdentityLookup.jl, files/distribution/IdentityPublisher.erl, files/runtime/MTLSRuntime.nim]",
+    "complete": true,
+    "prompt_tokens": 6508,
+    "completion_tokens": 138,
+    "generation_seconds": 23.438564481999947,
+    "context_mode": "full",
+    "source_token_coverage": 1.0,
+    "reward": 0.11299733017430162,
+    "format": 1.0,
+    "actions": 0.007913329384543678,
+    "files": 0.5333333333333333,
+    "action_parseable": true,
+    "file_parseable": true,
+    "format_error": null,
+    "extraction_errors": {},
+    "extraction": {
+      "warnings": [],
+      "actions": {
+        "value": [
+          "caller validation",
+          "workload validation",
+          "certificate validation",
+          "policy validation",
+          "issuance generation validation",
+          "runtime identity validation",
+          "session distributor validation",
+          "identity directory validation",
+          "identity lookup validation",
+          "identity publisher validation"
+        ],
+        "parseable": true,
+        "error": null,
+        "keys": [
+          "valid_defenses"
+        ],
+        "style": "unquoted_array",
+        "raw_values": [
+          "[caller_validation, workload_validation, certificate_validation, policy_validation, issuance_generation_validation, runtime_identity_validation, session_distributor_validation, identity_directory_validation, identity_lookup_validation, identity_publisher_validation]"
+        ]
+      },
+      "files": {
+        "value": [
+          "files/api/IdentityApi.lua",
+          "files/api/IdentityRequest.lua",
+          "files/approval/IdentityApprover.cr",
+          "files/approval/IdentityWorkflow.cr",
+          "files/approval/IssuedWorkloadIdentity.cr",
+          "files/broker/SessionDistributor.rkt",
+          "files/directory/IdentityDirectory.jl",
+          "files/directory/IdentityLookup.jl",
+          "files/distribution/IdentityPublisher.erl",
+          "files/runtime/MTLSRuntime.nim"
+        ],
+        "parseable": true,
+        "error": null,
+        "keys": [
+          "relevant_files"
+        ],
+        "style": "unquoted_array",
+        "raw_values": [
+          "[files/api/IdentityApi.lua, files/api/IdentityRequest.lua, files/approval/IdentityApprover.cr, files/approval/IdentityWorkflow.cr, files/approval/IssuedWorkloadIdentity.cr, files/broker/SessionDistributor.rkt, files/directory/IdentityDirectory.jl, files/directory/IdentityLookup.jl, files/distribution/IdentityPublisher.erl, files/runtime/MTLSRuntime.nim]"
+        ]
+      }
+    },
+    "output_format": "unquoted_array/unquoted_array",
+    "comparison": {
+      "predicted_actions": [
+        "caller validation",
+        "workload validation",
+        "certificate validation",
+        "policy validation",
+        "issuance generation validation",
+        "runtime identity validation",
+        "session distributor validation",
+        "identity directory validation",
+        "identity lookup validation",
+        "identity publisher validation"
+      ],
+      "target_actions": [
+        "certificate issuance lineage integrity verification"
+      ],
+      "action_status": "scored",
+      "file_status": "scored",
+      "action_matches": [
+        {
+          "predicted": "certificate validation",
+          "target": "certificate issuance lineage integrity verification",
+          "kind": "semantic",
+          "cosine": 0.617409348487854,
+          "credit": 0.043523311614990234
+        }
+      ],
+      "unmatched_actions": [
+        "caller validation",
+        "identity directory validation",
+        "identity lookup validation",
+        "identity publisher validation",
+        "issuance generation validation",
+        "policy validation",
+        "runtime identity validation",
+        "session distributor validation",
+        "workload validation"
+      ],
+      "missing_actions": [],
+      "predicted_files": [
+        "files/api/IdentityApi.lua",
+        "files/api/IdentityRequest.lua",
+        "files/approval/IdentityApprover.cr",
+        "files/approval/IdentityWorkflow.cr",
+        "files/approval/IssuedWorkloadIdentity.cr",
+        "files/broker/SessionDistributor.rkt",
+        "files/directory/IdentityDirectory.jl",
+        "files/directory/IdentityLookup.jl",
+        "files/distribution/IdentityPublisher.erl",
+        "files/runtime/MTLSRuntime.nim"
+      ],
+      "target_files": [
+        "files/approval/IssuedWorkloadIdentity.cr",
+        "files/directory/IdentityDirectory.jl",
+        "files/distribution/IdentityPublisher.erl",
+        "files/distribution/RuntimeIdentity.erl",
+        "files/runtime/MTLSRuntime.nim"
+      ],
+      "matched_files": [
+        "files/approval/IssuedWorkloadIdentity.cr",
+        "files/directory/IdentityDirectory.jl",
+        "files/distribution/IdentityPublisher.erl",
+        "files/runtime/MTLSRuntime.nim"
+      ],
+      "extra_files": [
+        "files/api/IdentityApi.lua",
+        "files/api/IdentityRequest.lua",
+        "files/approval/IdentityApprover.cr",
+        "files/approval/IdentityWorkflow.cr",
+        "files/broker/SessionDistributor.rkt",
+        "files/directory/IdentityLookup.jl"
+      ],
+      "missing_files": [
+        "files/distribution/RuntimeIdentity.erl"
+      ],
+      "weighted_action_reward": 0.006330663507634943,
+      "weighted_file_reward": 0.10666666666666667
+    },
+    "reward_before_truncation_gate": 0.11299733017430162,
+    "completion_token_ids": [
+      1930,
+      8001,
+      4377,
+      25,
+      510,
+      57226,
+      19980,
+      11,
+      54696,
+      19980,
+      11,
+      16125,
+      19980,
+      11,
+      4947,
+      19980,
+      11,
+      67599,
+      65291,
+      19980,
+      11,
+      15964,
+      47344,
+      19980,
+      11,
+      3882,
+      821,
+      79488,
+      19980,
+      11,
+      9764,
+      15191,
+      19980,
+      11,
+      9764,
+      28564,
+      19980,
+      11,
+      9764,
+      85826,
+      19980,
+      933,
+      98673,
+      11171,
+      25,
+      510,
+      7346,
+      10729,
+      14,
+      19069,
+      6700,
+      38111,
+      11,
+      3626,
+      10729,
+      14,
+      19069,
+      1939,
+      38111,
+      11,
+      3626,
+      10867,
+      299,
+      838,
+      14,
+      19069,
+      29688,
+      424,
+      42664,
+      11,
+      3626,
+      10867,
+      299,
+      838,
+      14,
+      19069,
+      63868,
+      42664,
+      11,
+      3626,
+      10867,
+      299,
+      838,
+      14,
+      29316,
+      3340,
+      6919,
+      1096,
+      19069,
+      42664,
+      11,
+      3626,
+      3554,
+      47085,
+      14,
+      5396,
+      35,
+      79488,
+      1783,
+      5964,
+      11,
+      3626,
+      3529,
+      4863,
+      14,
+      19069,
+      9494,
+      1190,
+      75,
+      11,
+      3626,
+      3529,
+      4863,
+      14,
+      19069,
+      35347,
+      1190,
+      75,
+      11,
+      3626,
+      3529,
+      13408,
+      14,
+      19069,
+      35650,
+      97973,
+      75,
+      11,
+      3626,
+      40398,
+      14,
+      8673,
+      7416,
+      15474,
+      1276,
+      318,
+      60,
+      128009
+    ]
+  },
+  {
+    "stage": "validation_episode_10",
+    "episode": null,
+    "epoch": null,
+    "scenario": "scenario_070",
+    "rollout": 1,
+    "metadata_path": "/kaggle/input/datasets/adityammantri/sogarl-code-data/SFT/SFT/SFT_Dataset/scenario_070/metadata.json",
+    "reference": "valid_defenses: [\"Bind runtime execution context to the approved immutable snapshot\", \"Reject execution when snapshot identity differs from the approved planning snapshot\", \"Resolve snapshots using approvedSnapshotId instead of workspaceId\", \"Verify resolved snapshotId matches PlanningSession.approvedSnapshotId\"]\nrelevant_files: [\"files/orchestration/AgentScheduler.ex\", \"files/runtime/ExecutionContext.fs\", \"files/runtime/TaskRuntime.fs\", \"files/session/PlanningSession.cr\", \"files/snapshot/ExecutionSnapshot.zig\", \"files/snapshot/SnapshotCatalog.zig\", \"files/snapshot/SnapshotIntegrityChecker.ml\", \"files/snapshot/SnapshotResolver.ml\"]",
+    "response": "valid_defenses: [snapshot_resolution_validation, execution_snapshot_integrity_verification, planning_session_canonical_binding]\nrelevant_files: [files/snapshot/SnapshotResolver.ml, files/snapshot/SnapshotIntegrityChecker.ml, files/session/PlanningSession.cr]",
+    "complete": true,
+    "prompt_tokens": 7783,
+    "completion_tokens": 51,
+    "generation_seconds": 15.244373776999964,
+    "context_mode": "full",
+    "source_token_coverage": 1.0,
+    "reward": 0.12906381247879622,
+    "format": 1.0,
+    "actions": 0.02496612923485892,
+    "files": 0.5454545454545454,
+    "action_parseable": true,
+    "file_parseable": true,
+    "format_error": null,
+    "extraction_errors": {},
+    "extraction": {
+      "warnings": [],
+      "actions": {
+        "value": [
+          "snapshot resolution validation",
+          "execution snapshot integrity verification",
+          "planning session canonical binding"
+        ],
+        "parseable": true,
+        "error": null,
+        "keys": [
+          "valid_defenses"
+        ],
+        "style": "unquoted_array",
+        "raw_values": [
+          "[snapshot_resolution_validation, execution_snapshot_integrity_verification, planning_session_canonical_binding]"
+        ]
+      },
+      "files": {
+        "value": [
+          "files/snapshot/SnapshotResolver.ml",
+          "files/snapshot/SnapshotIntegrityChecker.ml",
+          "files/session/PlanningSession.cr"
+        ],
+        "parseable": true,
+        "error": null,
+        "keys": [
+          "relevant_files"
+        ],
+        "style": "unquoted_array",
+        "raw_values": [
+          "[files/snapshot/SnapshotResolver.ml, files/snapshot/SnapshotIntegrityChecker.ml, files/session/PlanningSession.cr]"
+        ]
+      }
+    },
+    "output_format": "unquoted_array/unquoted_array",
+    "comparison": {
+      "predicted_actions": [
+        "snapshot resolution validation",
+        "execution snapshot integrity verification",
+        "planning session canonical binding"
+      ],
+      "target_actions": [
+        "bind runtime execution context to the approved immutable snapshot",
+        "reject execution when snapshot identity differs from the approved planning snapshot",
+        "resolve snapshots using approvedsnapshotid instead of workspaceid",
+        "verify resolved snapshotid matches planningsession.approvedsnapshotid"
+      ],
+      "action_status": "scored",
+      "file_status": "scored",
+      "action_matches": [
+        {
+          "predicted": "execution snapshot integrity verification",
+          "target": "bind runtime execution context to the approved immutable snapshot",
+          "kind": "semantic",
+          "cosine": 0.6349526047706604,
+          "credit": 0.08738145232200623
+        },
+        {
+          "predicted": "planning session canonical binding",
+          "target": "reject execution when snapshot identity differs from the approved planning snapshot",
+          "kind": "semantic",
+          "cosine": 0.21696224808692932,
+          "credit": 0.0
+        },
+        {
+          "predicted": "snapshot resolution validation",
+          "target": "resolve snapshots using approvedsnapshotid instead of workspaceid",
+          "kind": "semantic",
+          "cosine": 0.464098185300827,
+          "credit": 0.0
+        }
+      ],
+      "unmatched_actions": [
+        "planning session canonical binding",
+        "snapshot resolution validation"
+      ],
+      "missing_actions": [
+        "reject execution when snapshot identity differs from the approved planning snapshot",
+        "resolve snapshots using approvedsnapshotid instead of workspaceid",
+        "verify resolved snapshotid matches planningsession.approvedsnapshotid"
+      ],
+      "predicted_files": [
+        "files/snapshot/SnapshotResolver.ml",
+        "files/snapshot/SnapshotIntegrityChecker.ml",
+        "files/session/PlanningSession.cr"
+      ],
+      "target_files": [
+        "files/orchestration/AgentScheduler.ex",
+        "files/runtime/ExecutionContext.fs",
+        "files/runtime/TaskRuntime.fs",
+        "files/session/PlanningSession.cr",
+        "files/snapshot/ExecutionSnapshot.zig",
+        "files/snapshot/SnapshotCatalog.zig",
+        "files/snapshot/SnapshotIntegrityChecker.ml",
+        "files/snapshot/SnapshotResolver.ml"
+      ],
+      "matched_files": [
+        "files/session/PlanningSession.cr",
+        "files/snapshot/SnapshotIntegrityChecker.ml",
+        "files/snapshot/SnapshotResolver.ml"
+      ],
+      "extra_files": [],
+      "missing_files": [
+        "files/orchestration/AgentScheduler.ex",
+        "files/runtime/ExecutionContext.fs",
+        "files/runtime/TaskRuntime.fs",
+        "files/snapshot/ExecutionSnapshot.zig",
+        "files/snapshot/SnapshotCatalog.zig"
+      ],
+      "weighted_action_reward": 0.01997290338788714,
+      "weighted_file_reward": 0.10909090909090909
+    },
+    "reward_before_truncation_gate": 0.12906381247879622,
+    "completion_token_ids": [
+      1930,
+      8001,
+      4377,
+      25,
+      510,
+      36601,
+      40949,
+      19980,
+      11,
+      11572,
+      54365,
+      4132,
+      68312,
+      85345,
+      11,
+      9293,
+      12596,
+      28521,
+      23197,
+      61915,
+      933,
+      98673,
+      11171,
+      25,
+      510,
+      7346,
+      2754,
+      9797,
+      11628,
+      9797,
+      18689,
+      58509,
+      11,
+      3626,
+      2754,
+      9797,
+      11628,
+      9797,
+      1090,
+      68312,
+      36288,
+      58509,
+      11,
+      3626,
+      55860,
+      14,
+      84080,
+      5396,
+      42664,
+      60,
+      128009
+    ]
+  },
+  {
+    "stage": "validation_episode_10",
+    "episode": null,
+    "epoch": null,
+    "scenario": "scenario_076",
+    "rollout": 1,
+    "metadata_path": "/kaggle/input/datasets/adityammantri/sogarl-code-data/SFT/SFT/SFT_Dataset/scenario_076/metadata.json",
+    "reference": "valid_defenses: [\"approved_execution_binding_preservation\"]\nrelevant_files: [\"files/approval/ApprovedToolInvocation.cs\", \"files/approval/ToolApprovalService.cs\", \"files/gateway/ToolExecutionGateway.kt\", \"files/projection/InvocationProjectionService.java\", \"files/projection/RuntimeToolInvocation.java\", \"files/registry/ToolRegistry.rs\"]",
+    "response": "valid_defenses: [\n  approval_reconstruction,\n  runtime_execution_validation,\n  endpoint_revalidation\n]\nrelevant_files: [\n  files/registry/ToolRegistry.rs,\n  files/projection/RuntimeToolInvocation.java,\n  files/gateway/ToolExecutionGateway.kt\n]",
+    "complete": true,
+    "prompt_tokens": 6902,
+    "completion_tokens": 56,
+    "generation_seconds": 14.092567382000198,
+    "context_mode": "full",
+    "source_token_coverage": 1.0,
+    "reward": 0.13333333333333333,
+    "format": 1.0,
+    "actions": 0.0,
+    "files": 0.6666666666666666,
+    "action_parseable": true,
+    "file_parseable": true,
+    "format_error": null,
+    "extraction_errors": {},
+    "extraction": {
+      "warnings": [],
+      "actions": {
+        "value": [
+          "approval reconstruction",
+          "runtime execution validation",
+          "endpoint revalidation"
+        ],
+        "parseable": true,
+        "error": null,
+        "keys": [
+          "valid_defenses"
+        ],
+        "style": "unquoted_array",
+        "raw_values": [
+          "[\n  approval_reconstruction,\n  runtime_execution_validation,\n  endpoint_revalidation\n]"
+        ]
+      },
+      "files": {
+        "value": [
+          "files/registry/ToolRegistry.rs",
+          "files/projection/RuntimeToolInvocation.java",
+          "files/gateway/ToolExecutionGateway.kt"
+        ],
+        "parseable": true,
+        "error": null,
+        "keys": [
+          "relevant_files"
+        ],
+        "style": "unquoted_array",
+        "raw_values": [
+          "[\n  files/registry/ToolRegistry.rs,\n  files/projection/RuntimeToolInvocation.java,\n  files/gateway/ToolExecutionGateway.kt\n]"
+        ]
+      }
+    },
+    "output_format": "unquoted_array/unquoted_array",
+    "comparison": {
+      "predicted_actions": [
+        "approval reconstruction",
+        "runtime execution validation",
+        "endpoint revalidation"
+      ],
+      "target_actions": [
+        "approved execution binding preservation"
+      ],
+      "action_status": "scored",
+      "file_status": "scored",
+      "action_matches": [
+        {
+          "predicted": "approval reconstruction",
+          "target": "approved execution binding preservation",
+          "kind": "semantic",
+          "cosine": 0.37898603081703186,
+          "credit": 0.0
+        }
+      ],
+      "unmatched_actions": [
+        "approval reconstruction",
+        "endpoint revalidation",
+        "runtime execution validation"
+      ],
+      "missing_actions": [
+        "approved execution binding preservation"
+      ],
+      "predicted_files": [
+        "files/registry/ToolRegistry.rs",
+        "files/projection/RuntimeToolInvocation.java",
+        "files/gateway/ToolExecutionGateway.kt"
+      ],
+      "target_files": [
+        "files/approval/ApprovedToolInvocation.cs",
+        "files/approval/ToolApprovalService.cs",
+        "files/gateway/ToolExecutionGateway.kt",
+        "files/projection/InvocationProjectionService.java",
+        "files/projection/RuntimeToolInvocation.java",
+        "files/registry/ToolRegistry.rs"
+      ],
+      "matched_files": [
+        "files/gateway/ToolExecutionGateway.kt",
+        "files/projection/RuntimeToolInvocation.java",
+        "files/registry/ToolRegistry.rs"
+      ],
+      "extra_files": [],
+      "missing_files": [
+        "files/approval/ApprovedToolInvocation.cs",
+        "files/approval/ToolApprovalService.cs",
+        "files/projection/InvocationProjectionService.java"
+      ],
+      "weighted_action_reward": 0.0,
+      "weighted_file_reward": 0.13333333333333333
+    },
+    "reward_before_truncation_gate": 0.13333333333333333,
+    "completion_token_ids": [
+      1930,
+      8001,
+      4377,
+      25,
+      2330,
+      220,
+      14765,
+      1311,
+      48297,
+      345,
+      220,
+      15964,
+      62048,
+      19980,
+      345,
+      220,
+      15233,
+      1311,
+      12564,
+      198,
+      933,
+      98673,
+      11171,
+      25,
+      2330,
+      220,
+      3626,
+      14,
+      30272,
+      14,
+      7896,
+      15976,
+      26721,
+      345,
+      220,
+      3626,
+      18493,
+      7761,
+      83736,
+      7896,
+      38543,
+      11085,
+      345,
+      220,
+      3626,
+      4951,
+      12312,
+      14,
+      7896,
+      20912,
+      41809,
+      5314,
+      83,
+      198,
+      60,
+      128009
+    ]
+  },
+  {
+    "stage": "validation_episode_10",
+    "episode": null,
+    "epoch": null,
+    "scenario": "scenario_089",
+    "rollout": 1,
+    "metadata_path": "/kaggle/input/datasets/adityammantri/sogarl-code-data/SFT/SFT/SFT_Dataset/scenario_089/metadata.json",
+    "reference": "valid_defenses: [\"Maintain canonical capability identity across approval and runtime pipelines\", \"Preserve providerId during capability projection\", \"Prevent reconstruction of provider identity from partial runtime metadata\", \"Resolve providers using complete capability identity\"]\nrelevant_files: [\"files/backend/approval/PolicyApprovalService.java\", \"files/backend/capability/CapabilityProjectionService.rs\", \"files/backend/capability/CapabilityRepository.rs\", \"files/backend/capability/RuntimeCapability.cs\", \"files/backend/planner/ExecutionPlanner.py\", \"files/backend/runtime/ExecutionDispatcher.cpp\", \"files/backend/runtime/McpGateway.go\", \"files/backend/runtime/ProviderResolver.kt\", \"files/backend/scheduler/ExecutionScheduler.cs\"]",
+    "response": "valid_defenses: [\n  argument_validation,\n  capability_reconstruction,\n  execution_audit_validation,\n  runtime_provider_validation\n]\nrelevant_files: [\n  files/backend/approval/PolicyApprovalService.java,\n  files/backend/capability/CapabilityProjectionService.rs,\n  files/backend/capability/RuntimeCapability.cs,\n  files/backend/planner/ExecutionPlanner.py,\n  files/backend/runtime/ExecutionDispatcher.cpp,\n  files/backend/runtime/ProviderResolver.kt\n]",
+    "complete": true,
+    "prompt_tokens": 8192,
+    "completion_tokens": 96,
+    "generation_seconds": 22.561029511000015,
+    "context_mode": "truncated",
+    "source_token_coverage": 0.6859964093357271,
+    "reward": 0.16000000000000003,
+    "format": 1.0,
+    "actions": 0.0,
+    "files": 0.8,
+    "action_parseable": true,
+    "file_parseable": true,
+    "format_error": null,
+    "extraction_errors": {},
+    "extraction": {
+      "warnings": [],
+      "actions": {
+        "value": [
+          "argument validation",
+          "capability reconstruction",
+          "execution audit validation",
+          "runtime provider validation"
+        ],
+        "parseable": true,
+        "error": null,
+        "keys": [
+          "valid_defenses"
+        ],
+        "style": "unquoted_array",
+        "raw_values": [
+          "[\n  argument_validation,\n  capability_reconstruction,\n  execution_audit_validation,\n  runtime_provider_validation\n]"
+        ]
+      },
+      "files": {
+        "value": [
+          "files/backend/approval/PolicyApprovalService.java",
+          "files/backend/capability/CapabilityProjectionService.rs",
+          "files/backend/capability/RuntimeCapability.cs",
+          "files/backend/planner/ExecutionPlanner.py",
+          "files/backend/runtime/ExecutionDispatcher.cpp",
+          "files/backend/runtime/ProviderResolver.kt"
+        ],
+        "parseable": true,
+        "error": null,
+        "keys": [
+          "relevant_files"
+        ],
+        "style": "unquoted_array",
+        "raw_values": [
+          "[\n  files/backend/approval/PolicyApprovalService.java,\n  files/backend/capability/CapabilityProjectionService.rs,\n  files/backend/capability/RuntimeCapability.cs,\n  files/backend/planner/ExecutionPlanner.py,\n  files/backend/runtime/ExecutionDispatcher.cpp,\n  files/backend/runtime/ProviderResolver.kt\n]"
+        ]
+      }
+    },
+    "output_format": "unquoted_array/unquoted_array",
+    "comparison": {
+      "predicted_actions": [
+        "argument validation",
+        "capability reconstruction",
+        "execution audit validation",
+        "runtime provider validation"
+      ],
+      "target_actions": [
+        "maintain canonical capability identity across approval and runtime pipelines",
+        "preserve providerid during capability projection",
+        "prevent reconstruction of provider identity from partial runtime metadata",
+        "resolve providers using complete capability identity"
+      ],
+      "action_status": "scored",
+      "file_status": "scored",
+      "action_matches": [
+        {
+          "predicted": "argument validation",
+          "target": "maintain canonical capability identity across approval and runtime pipelines",
+          "kind": "semantic",
+          "cosine": 0.05769692733883858,
+          "credit": 0.0
+        },
+        {
+          "predicted": "capability reconstruction",
+          "target": "preserve providerid during capability projection",
+          "kind": "semantic",
+          "cosine": 0.4910661280155182,
+          "credit": 0.0
+        },
+        {
+          "predicted": "execution audit validation",
+          "target": "prevent reconstruction of provider identity from partial runtime metadata",
+          "kind": "semantic",
+          "cosine": 0.19521424174308777,
+          "credit": 0.0
+        },
+        {
+          "predicted": "runtime provider validation",
+          "target": "resolve providers using complete capability identity",
+          "kind": "semantic",
+          "cosine": 0.4384249448776245,
+          "credit": 0.0
+        }
+      ],
+      "unmatched_actions": [
+        "argument validation",
+        "capability reconstruction",
+        "execution audit validation",
+        "runtime provider validation"
+      ],
+      "missing_actions": [
+        "maintain canonical capability identity across approval and runtime pipelines",
+        "preserve providerid during capability projection",
+        "prevent reconstruction of provider identity from partial runtime metadata",
+        "resolve providers using complete capability identity"
+      ],
+      "predicted_files": [
+        "files/backend/approval/PolicyApprovalService.java",
+        "files/backend/capability/CapabilityProjectionService.rs",
+        "files/backend/capability/RuntimeCapability.cs",
+        "files/backend/planner/ExecutionPlanner.py",
+        "files/backend/runtime/ExecutionDispatcher.cpp",
+        "files/backend/runtime/ProviderResolver.kt"
+      ],
+      "target_files": [
+        "files/backend/approval/PolicyApprovalService.java",
+        "files/backend/capability/CapabilityProjectionService.rs",
+        "files/backend/capability/CapabilityRepository.rs",
+        "files/backend/capability/RuntimeCapability.cs",
+        "files/backend/planner/ExecutionPlanner.py",
+        "files/backend/runtime/ExecutionDispatcher.cpp",
+        "files/backend/runtime/McpGateway.go",
+        "files/backend/runtime/ProviderResolver.kt",
+        "files/backend/scheduler/ExecutionScheduler.cs"
+      ],
+      "matched_files": [
+        "files/backend/approval/PolicyApprovalService.java",
+        "files/backend/capability/CapabilityProjectionService.rs",
+        "files/backend/capability/RuntimeCapability.cs",
+        "files/backend/planner/ExecutionPlanner.py",
+        "files/backend/runtime/ExecutionDispatcher.cpp",
+        "files/backend/runtime/ProviderResolver.kt"
+      ],
+      "extra_files": [],
+      "missing_files": [
+        "files/backend/capability/CapabilityRepository.rs",
+        "files/backend/runtime/McpGateway.go",
+        "files/backend/scheduler/ExecutionScheduler.cs"
+      ],
+      "weighted_action_reward": 0.0,
+      "weighted_file_reward": 0.16000000000000003
+    },
+    "reward_before_truncation_gate": 0.16000000000000003,
+    "completion_token_ids": [
+      1930,
+      8001,
+      4377,
+      25,
+      2330,
+      220,
+      5811,
+      19980,
+      345,
+      220,
+      23099,
+      1311,
+      48297,
+      345,
+      220,
+      11572,
+      85537,
+      19980,
+      345,
+      220,
+      15964,
+      30618,
+      19980,
+      198,
+      933,
+      98673,
+      11171,
+      25,
+      2330,
+      220,
+      3626,
+      71120,
+      10867,
+      299,
+      838,
+      14,
+      14145,
+      91207,
+      1898,
+      11085,
+      345,
+      220,
+      3626,
+      71120,
+      2971,
+      391,
+      2968,
+      11547,
+      391,
+      2968,
+      47421,
+      1898,
+      26721,
+      345,
+      220,
+      3626,
+      71120,
+      2971,
+      391,
+      2968,
+      83736,
+      64846,
+      19302,
+      345,
+      220,
+      3626,
+      71120,
+      11505,
+      4992,
+      14,
+      20912,
+      2169,
+      4992,
+      7345,
+      345,
+      220,
+      3626,
+      71120,
+      40398,
+      14,
+      20912,
+      22594,
+      7356,
+      345,
+      220,
+      3626,
+      71120,
+      40398,
+      14,
+      5290,
+      18689,
+      5314,
+      83,
+      198,
+      60,
+      128009
+    ]
+  },
+  {
+    "stage": "validation_episode_10",
+    "episode": null,
+    "epoch": null,
+    "scenario": "scenario_098",
+    "rollout": 1,
+    "metadata_path": "/kaggle/input/datasets/adityammantri/sogarl-code-data/SFT/SFT/SFT_Dataset/scenario_098/metadata.json",
+    "reference": "valid_defenses: [\"derive_classification_generation_from_approved_revision\", \"derive_materialization_identity_from_full_canonical_lineage_identity\", \"key_schema_resolution_by_dataset_and_generation\", \"key_transformation_catalog_by_dataset_and_generation\", \"preserve_canonical_lineage_identity_across_identity_construction_resolution_composition_and_materialization\", \"preserve_snapshot_generation_during_identity_construction\", \"verify_all_lineage_nodes_share_approved_revision_before_composition\"]\nrelevant_files: [\"files/approval/ApprovedLineageRevision.fs\", \"files/classification/ClassificationAssembler.cpp\", \"files/classification/ClassificationNode.cpp\", \"files/convergence/LineageGraphComposer.swift\", \"files/convergence/RuntimeLineageGraph.swift\", \"files/identity/IdentityNode.rs\", \"files/identity/IdentityNodeBuilder.rs\", \"files/materialization/DatasetMaterializer.elm\", \"files/materialization/EnterpriseAnalyticsGateway.jl\", \"files/materialization/MaterializedDataset.elm\", \"files/quality/QualityNode.zig\", \"files/schema/SchemaNode.kt\", \"files/schema/SchemaResolver.kt\", \"files/snapshot/SnapshotNode.ml\", \"files/transformation/TransformationCatalog.scala\", \"files/transformation/TransformationNode.scala\"]",
+    "response": "valid_defenses: [\n  approval_signature_validation\n  identity_node_canonical_identity\n  lineage_graph_composition_validation\n  schema_resolver_active_schemas_only\n  transformation_catalog_active_bindings_only\n]\n\nrelevant_files: [\n  files/approval/LineageApprovalAuthority.fs\n  files/identity/IdentityNode.rs\n  files/convergence/RuntimeLineageGraph.swift\n  files/schema/SchemaResolver.kt\n  files/transformation/TransformationCatalog.scala\n]",
+    "complete": true,
+    "prompt_tokens": 8192,
+    "completion_tokens": 95,
+    "generation_seconds": 22.588983422000183,
+    "context_mode": "truncated",
+    "source_token_coverage": 0.6532923617208077,
+    "reward": 0.0,
+    "format": 0.0,
+    "actions": 0.0,
+    "files": 0.0,
+    "action_parseable": true,
+    "file_parseable": false,
+    "format_error": "files: Ambiguous plain file list; use quoted paths in an array",
+    "extraction_errors": {
+      "files": "Ambiguous plain file list; use quoted paths in an array"
+    },
+    "extraction": {
+      "warnings": [],
+      "actions": {
+        "value": [
+          "approval signature validation identity node canonical identity lineage graph composition validation schema resolver active schemas only transformation catalog active bindings only"
+        ],
+        "parseable": true,
+        "error": null,
+        "keys": [
+          "valid_defenses"
+        ],
+        "style": "unquoted_array",
+        "raw_values": [
+          "[\n  approval_signature_validation\n  identity_node_canonical_identity\n  lineage_graph_composition_validation\n  schema_resolver_active_schemas_only\n  transformation_catalog_active_bindings_only\n]"
+        ]
+      },
+      "files": {
+        "value": null,
+        "parseable": false,
+        "error": "Ambiguous plain file list; use quoted paths in an array",
+        "keys": [
+          "relevant_files"
+        ],
+        "style": null,
+        "raw_values": [
+          "[\n  files/approval/LineageApprovalAuthority.fs\n  files/identity/IdentityNode.rs\n  files/convergence/RuntimeLineageGraph.swift\n  files/schema/SchemaResolver.kt\n  files/transformation/TransformationCatalog.scala\n]"
+        ]
+      }
+    },
+    "output_format": "unquoted_array/missing_or_invalid",
+    "comparison": {
+      "predicted_actions": [
+        "approval signature validation identity node canonical identity lineage graph composition validation schema resolver active schemas only transformation catalog active bindings only"
+      ],
+      "target_actions": [
+        "derive classification generation from approved revision",
+        "derive materialization identity from full canonical lineage identity",
+        "key schema resolution by dataset and generation",
+        "key transformation catalog by dataset and generation",
+        "preserve canonical lineage identity across identity construction resolution composition and materialization",
+        "preserve snapshot generation during identity construction",
+        "verify all lineage nodes share approved revision before composition"
+      ],
+      "action_status": "scored",
+      "file_status": "not_extracted",
+      "action_matches": [
+        {
+          "predicted": "approval signature validation identity node canonical identity lineage graph composition validation schema resolver active schemas only transformation catalog active bindings only",
+          "target": "derive classification generation from approved revision",
+          "kind": "semantic",
+          "cosine": 0.2086934596300125,
+          "credit": 0.0
+        }
+      ],
+      "unmatched_actions": [
+        "approval signature validation identity node canonical identity lineage graph composition validation schema resolver active schemas only transformation catalog active bindings only"
+      ],
+      "missing_actions": [
+        "derive classification generation from approved revision",
+        "derive materialization identity from full canonical lineage identity",
+        "key schema resolution by dataset and generation",
+        "key transformation catalog by dataset and generation",
+        "preserve canonical lineage identity across identity construction resolution composition and materialization",
+        "preserve snapshot generation during identity construction",
+        "verify all lineage nodes share approved revision before composition"
+      ],
+      "predicted_files": null,
+      "target_files": [
+        "files/approval/ApprovedLineageRevision.fs",
+        "files/classification/ClassificationAssembler.cpp",
+        "files/classification/ClassificationNode.cpp",
+        "files/convergence/LineageGraphComposer.swift",
+        "files/convergence/RuntimeLineageGraph.swift",
+        "files/identity/IdentityNode.rs",
+        "files/identity/IdentityNodeBuilder.rs",
+        "files/materialization/DatasetMaterializer.elm",
+        "files/materialization/EnterpriseAnalyticsGateway.jl",
+        "files/materialization/MaterializedDataset.elm",
+        "files/quality/QualityNode.zig",
+        "files/schema/SchemaNode.kt",
+        "files/schema/SchemaResolver.kt",
+        "files/snapshot/SnapshotNode.ml",
+        "files/transformation/TransformationCatalog.scala",
+        "files/transformation/TransformationNode.scala"
+      ],
+      "matched_files": null,
+      "extra_files": null,
+      "missing_files": null,
+      "weighted_action_reward": 0.0,
+      "weighted_file_reward": 0.0
+    },
+    "reward_before_truncation_gate": 0.0,
+    "completion_token_ids": [
+      1930,
+      8001,
+      4377,
+      25,
+      2330,
+      220,
+      14765,
+      40959,
+      19980,
+      198,
+      220,
+      9764,
+      5194,
+      28521,
+      23197,
+      47344,
+      198,
+      220,
+      65009,
+      15080,
+      3038,
+      3571,
+      19980,
+      198,
+      220,
+      11036,
+      92678,
+      13226,
+      646,
+      32226,
+      18917,
+      198,
+      220,
+      18475,
+      48410,
+      13226,
+      95616,
+      18917,
+      198,
+      2595,
+      98673,
+      11171,
+      25,
+      2330,
+      220,
+      3626,
+      10867,
+      299,
+      838,
+      14,
+      2519,
+      425,
+      91207,
+      46632,
+      42455,
+      198,
+      220,
+      3626,
+      14,
+      17341,
+      14,
+      19069,
+      1997,
+      26721,
+      198,
+      220,
+      3626,
+      32336,
+      81848,
+      83736,
+      2519,
+      425,
+      11461,
+      13593,
+      198,
+      220,
+      3626,
+      62242,
+      14,
+      8802,
+      18689,
+      5314,
+      83,
+      198,
+      220,
+      3626,
+      81221,
+      1659,
+      14,
+      65363,
+      42706,
+      65775,
+      198,
+      60,
+      128009
+    ]
+  }
+]
