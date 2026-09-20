@@ -1,0 +1,2059 @@
+[
+  {
+    "stage": "validation_episode_75",
+    "episode": null,
+    "epoch": null,
+    "scenario": "scenario_005",
+    "rollout": 1,
+    "metadata_path": "/kaggle/input/datasets/adityammantri/sogarl-code-data/SFT/SFT/SFT_Dataset/scenario_005/metadata.json",
+    "reference": "valid_attacks: [\"cross_site_scripting\"]\nrelevant_files: [\"files/backend/routes/review_routes.py\", \"files/backend/services/review_service.py\", \"files/frontend/src/pages/AdminDashboard.jsx\", \"files/frontend/src/pages/SubmitReview.jsx\", \"files/frontend/src/services/reviewService.js\"]",
+    "response": "valid_attacks:\n[\n  \"sql_injection\",\n  \"server_side_request_forgery\",\n  \"cross_site_scripting\"\n]\n\nrelevant_files:\n[\n  \"files/backend/models/review.py\",\n  \"files/backend/services/review_service.py\",\n  \"files/frontend/src/pages/AdminDashboard.jsx\",\n  \"files/backend/routes/review_routes.py\"\n]",
+    "complete": true,
+    "prompt_tokens": 3291,
+    "completion_tokens": 73,
+    "generation_seconds": 11.052889373000653,
+    "context_mode": "full",
+    "source_token_coverage": 1.0,
+    "reward": 0.5333333333333333,
+    "format": 1.0,
+    "actions": 0.5,
+    "files": 0.6666666666666666,
+    "action_parseable": true,
+    "file_parseable": true,
+    "format_error": null,
+    "extraction_errors": {},
+    "extraction": {
+      "warnings": [],
+      "actions": {
+        "value": [
+          "sql injection",
+          "server side request forgery",
+          "cross site scripting"
+        ],
+        "parseable": true,
+        "error": null,
+        "keys": [
+          "valid_attacks"
+        ],
+        "style": "json_array",
+        "raw_values": [
+          "[\n  \"sql_injection\",\n  \"server_side_request_forgery\",\n  \"cross_site_scripting\"\n]"
+        ]
+      },
+      "files": {
+        "value": [
+          "files/backend/models/review.py",
+          "files/backend/services/review_service.py",
+          "files/frontend/src/pages/AdminDashboard.jsx",
+          "files/backend/routes/review_routes.py"
+        ],
+        "parseable": true,
+        "error": null,
+        "keys": [
+          "relevant_files"
+        ],
+        "style": "json_array",
+        "raw_values": [
+          "[\n  \"files/backend/models/review.py\",\n  \"files/backend/services/review_service.py\",\n  \"files/frontend/src/pages/AdminDashboard.jsx\",\n  \"files/backend/routes/review_routes.py\"\n]"
+        ]
+      }
+    },
+    "output_format": "json_array/json_array",
+    "comparison": {
+      "predicted_actions": [
+        "sql injection",
+        "server side request forgery",
+        "cross site scripting"
+      ],
+      "target_actions": [
+        "cross site scripting"
+      ],
+      "action_status": "scored",
+      "file_status": "scored",
+      "action_matches": [
+        {
+          "predicted": "cross site scripting",
+          "target": "cross site scripting",
+          "kind": "exact",
+          "cosine": 1.0,
+          "credit": 1.0
+        }
+      ],
+      "unmatched_actions": [
+        "server side request forgery",
+        "sql injection"
+      ],
+      "missing_actions": [],
+      "predicted_files": [
+        "files/backend/models/review.py",
+        "files/backend/services/review_service.py",
+        "files/frontend/src/pages/AdminDashboard.jsx",
+        "files/backend/routes/review_routes.py"
+      ],
+      "target_files": [
+        "files/backend/routes/review_routes.py",
+        "files/backend/services/review_service.py",
+        "files/frontend/src/pages/AdminDashboard.jsx",
+        "files/frontend/src/pages/SubmitReview.jsx",
+        "files/frontend/src/services/reviewService.js"
+      ],
+      "matched_files": [
+        "files/backend/routes/review_routes.py",
+        "files/backend/services/review_service.py",
+        "files/frontend/src/pages/AdminDashboard.jsx"
+      ],
+      "extra_files": [
+        "files/backend/models/review.py"
+      ],
+      "missing_files": [
+        "files/frontend/src/pages/SubmitReview.jsx",
+        "files/frontend/src/services/reviewService.js"
+      ],
+      "weighted_action_reward": 0.4,
+      "weighted_file_reward": 0.13333333333333333
+    },
+    "reward_before_truncation_gate": 0.5333333333333333,
+    "completion_token_ids": [
+      1930,
+      13660,
+      7977,
+      512,
+      9837,
+      220,
+      330,
+      3628,
+      1265,
+      7761,
+      761,
+      220,
+      330,
+      4120,
+      31962,
+      8052,
+      766,
+      1813,
+      727,
+      761,
+      220,
+      330,
+      29942,
+      25521,
+      15002,
+      287,
+      702,
+      2595,
+      98673,
+      11171,
+      512,
+      9837,
+      220,
+      330,
+      7346,
+      71120,
+      20883,
+      10991,
+      1068,
+      7345,
+      761,
+      220,
+      330,
+      7346,
+      71120,
+      23054,
+      10991,
+      1068,
+      12547,
+      7345,
+      761,
+      220,
+      330,
+      7346,
+      74263,
+      13743,
+      30178,
+      57656,
+      28045,
+      42040,
+      761,
+      220,
+      330,
+      7346,
+      71120,
+      64070,
+      10991,
+      1068,
+      65414,
+      7345,
+      702,
+      60,
+      128009
+    ]
+  },
+  {
+    "stage": "validation_episode_75",
+    "episode": null,
+    "epoch": null,
+    "scenario": "scenario_012",
+    "rollout": 1,
+    "metadata_path": "/kaggle/input/datasets/adityammantri/sogarl-code-data/SFT/SFT/SFT_Dataset/scenario_012/metadata.json",
+    "reference": "valid_attacks: [\"cross_service_trust_abuse\", \"lateral_movement\"]\nrelevant_files: [\"files/configs/services.yaml\", \"files/services/analytics/grpc_client.go\", \"files/services/analytics/token_factory.go\", \"files/services/billing/auth_middleware.go\", \"files/services/billing/invoice_service.go\", \"files/shared/service_identity.go\", \"files/shared/trust_policy.go\"]",
+    "response": "valid_attacks:\n[\n  cross_service_trust_abuse,\n  jwt_forgery,\n  secret_storage_misconfiguration\n]\n\nrelevant_files:\n[\n  files/configs/services.yaml,\n  files/services/analytics/token_factory.go,\n  files/services/billing/auth_middleware.go,\n  files/shared/vault_client.go\n]",
+    "complete": true,
+    "prompt_tokens": 4322,
+    "completion_tokens": 67,
+    "generation_seconds": 12.246800749999238,
+    "context_mode": "full",
+    "source_token_coverage": 1.0,
+    "reward": 0.42909090909090913,
+    "format": 1.0,
+    "actions": 0.4,
+    "files": 0.5454545454545454,
+    "action_parseable": true,
+    "file_parseable": true,
+    "format_error": null,
+    "extraction_errors": {},
+    "extraction": {
+      "warnings": [],
+      "actions": {
+        "value": [
+          "cross service trust abuse",
+          "jwt forgery",
+          "secret storage misconfiguration"
+        ],
+        "parseable": true,
+        "error": null,
+        "keys": [
+          "valid_attacks"
+        ],
+        "style": "unquoted_array",
+        "raw_values": [
+          "[\n  cross_service_trust_abuse,\n  jwt_forgery,\n  secret_storage_misconfiguration\n]"
+        ]
+      },
+      "files": {
+        "value": [
+          "files/configs/services.yaml",
+          "files/services/analytics/token_factory.go",
+          "files/services/billing/auth_middleware.go",
+          "files/shared/vault_client.go"
+        ],
+        "parseable": true,
+        "error": null,
+        "keys": [
+          "relevant_files"
+        ],
+        "style": "unquoted_array",
+        "raw_values": [
+          "[\n  files/configs/services.yaml,\n  files/services/analytics/token_factory.go,\n  files/services/billing/auth_middleware.go,\n  files/shared/vault_client.go\n]"
+        ]
+      }
+    },
+    "output_format": "unquoted_array/unquoted_array",
+    "comparison": {
+      "predicted_actions": [
+        "cross service trust abuse",
+        "jwt forgery",
+        "secret storage misconfiguration"
+      ],
+      "target_actions": [
+        "cross service trust abuse",
+        "lateral movement"
+      ],
+      "action_status": "scored",
+      "file_status": "scored",
+      "action_matches": [
+        {
+          "predicted": "cross service trust abuse",
+          "target": "cross service trust abuse",
+          "kind": "exact",
+          "cosine": 1.0,
+          "credit": 1.0
+        },
+        {
+          "predicted": "jwt forgery",
+          "target": "lateral movement",
+          "kind": "semantic",
+          "cosine": 0.04366473853588104,
+          "credit": 0.0
+        }
+      ],
+      "unmatched_actions": [
+        "jwt forgery",
+        "secret storage misconfiguration"
+      ],
+      "missing_actions": [
+        "lateral movement"
+      ],
+      "predicted_files": [
+        "files/configs/services.yaml",
+        "files/services/analytics/token_factory.go",
+        "files/services/billing/auth_middleware.go",
+        "files/shared/vault_client.go"
+      ],
+      "target_files": [
+        "files/configs/services.yaml",
+        "files/services/analytics/grpc_client.go",
+        "files/services/analytics/token_factory.go",
+        "files/services/billing/auth_middleware.go",
+        "files/services/billing/invoice_service.go",
+        "files/shared/service_identity.go",
+        "files/shared/trust_policy.go"
+      ],
+      "matched_files": [
+        "files/configs/services.yaml",
+        "files/services/analytics/token_factory.go",
+        "files/services/billing/auth_middleware.go"
+      ],
+      "extra_files": [
+        "files/shared/vault_client.go"
+      ],
+      "missing_files": [
+        "files/services/analytics/grpc_client.go",
+        "files/services/billing/invoice_service.go",
+        "files/shared/service_identity.go",
+        "files/shared/trust_policy.go"
+      ],
+      "weighted_action_reward": 0.32000000000000006,
+      "weighted_file_reward": 0.10909090909090909
+    },
+    "reward_before_truncation_gate": 0.42909090909090913,
+    "completion_token_ids": [
+      1930,
+      13660,
+      7977,
+      512,
+      9837,
+      220,
+      5425,
+      12547,
+      3631,
+      592,
+      23734,
+      817,
+      345,
+      220,
+      25608,
+      766,
+      1813,
+      727,
+      345,
+      220,
+      6367,
+      24192,
+      722,
+      285,
+      21822,
+      198,
+      2595,
+      98673,
+      11171,
+      512,
+      9837,
+      220,
+      3626,
+      15072,
+      82,
+      23054,
+      34506,
+      345,
+      220,
+      3626,
+      23054,
+      56592,
+      18014,
+      55486,
+      25255,
+      18487,
+      345,
+      220,
+      3626,
+      23054,
+      3554,
+      9585,
+      17823,
+      722,
+      11864,
+      18487,
+      345,
+      220,
+      3626,
+      27038,
+      5574,
+      957,
+      8342,
+      18487,
+      198,
+      60,
+      128009
+    ]
+  },
+  {
+    "stage": "validation_episode_75",
+    "episode": null,
+    "epoch": null,
+    "scenario": "scenario_028",
+    "rollout": 1,
+    "metadata_path": "/kaggle/input/datasets/adityammantri/sogarl-code-data/SFT/SFT/SFT_Dataset/scenario_028/metadata.json",
+    "reference": "valid_attacks: [\"aggregation_scope_collision\", \"analytics_bucket_contamination\", \"cross_tenant_analytics_exposure\", \"tenant_context_confusion\"]\nrelevant_files: [\"files/kafka/ImpressionConsumer.cpp\", \"files/models/AdEvent.proto\", \"files/models/AnalyticsBucket.cpp\", \"files/repositories/AnalyticsRepository.rs\", \"files/repositories/CampaignRepository.rs\", \"files/services/AnalyticsQueryService.scala\", \"files/streaming/AggregationCoordinator.cpp\", \"files/streaming/AnalyticsAggregationWorker.cpp\", \"files/streaming/MetricsBucketBuilder.cpp\"]",
+    "response": "valid_attacks:\n[\n  tenant_context_confusion,\n  analytics_isolation_collapse\n]\n\nrelevant_files:\n[\n  files/kafka/ConversionConsumer.cpp,\n  files/kafka/ImpressionConsumer.cpp,\n  files/models/AdEvent.proto,\n  files/models/AnalyticsBucket.cpp,\n  files/streaming/MetricsBucketBuilder.cpp,\n  files/streaming/AggregationCoordinator.cpp,\n  files/services/AnalyticsQueryService.scala\n]",
+    "complete": true,
+    "prompt_tokens": 6518,
+    "completion_tokens": 89,
+    "generation_seconds": 19.584752565999224,
+    "context_mode": "full",
+    "source_token_coverage": 1.0,
+    "reward": 0.4166666666666667,
+    "format": 1.0,
+    "actions": 0.3333333333333333,
+    "files": 0.75,
+    "action_parseable": true,
+    "file_parseable": true,
+    "format_error": null,
+    "extraction_errors": {},
+    "extraction": {
+      "warnings": [],
+      "actions": {
+        "value": [
+          "tenant context confusion",
+          "analytics isolation collapse"
+        ],
+        "parseable": true,
+        "error": null,
+        "keys": [
+          "valid_attacks"
+        ],
+        "style": "unquoted_array",
+        "raw_values": [
+          "[\n  tenant_context_confusion,\n  analytics_isolation_collapse\n]"
+        ]
+      },
+      "files": {
+        "value": [
+          "files/kafka/ConversionConsumer.cpp",
+          "files/kafka/ImpressionConsumer.cpp",
+          "files/models/AdEvent.proto",
+          "files/models/AnalyticsBucket.cpp",
+          "files/streaming/MetricsBucketBuilder.cpp",
+          "files/streaming/AggregationCoordinator.cpp",
+          "files/services/AnalyticsQueryService.scala"
+        ],
+        "parseable": true,
+        "error": null,
+        "keys": [
+          "relevant_files"
+        ],
+        "style": "unquoted_array",
+        "raw_values": [
+          "[\n  files/kafka/ConversionConsumer.cpp,\n  files/kafka/ImpressionConsumer.cpp,\n  files/models/AdEvent.proto,\n  files/models/AnalyticsBucket.cpp,\n  files/streaming/MetricsBucketBuilder.cpp,\n  files/streaming/AggregationCoordinator.cpp,\n  files/services/AnalyticsQueryService.scala\n]"
+        ]
+      }
+    },
+    "output_format": "unquoted_array/unquoted_array",
+    "comparison": {
+      "predicted_actions": [
+        "tenant context confusion",
+        "analytics isolation collapse"
+      ],
+      "target_actions": [
+        "aggregation scope collision",
+        "analytics bucket contamination",
+        "cross tenant analytics exposure",
+        "tenant context confusion"
+      ],
+      "action_status": "scored",
+      "file_status": "scored",
+      "action_matches": [
+        {
+          "predicted": "tenant context confusion",
+          "target": "tenant context confusion",
+          "kind": "exact",
+          "cosine": 1.0,
+          "credit": 1.0
+        },
+        {
+          "predicted": "analytics isolation collapse",
+          "target": "aggregation scope collision",
+          "kind": "semantic",
+          "cosine": 0.37208402156829834,
+          "credit": 0.0
+        }
+      ],
+      "unmatched_actions": [
+        "analytics isolation collapse"
+      ],
+      "missing_actions": [
+        "aggregation scope collision",
+        "analytics bucket contamination",
+        "cross tenant analytics exposure"
+      ],
+      "predicted_files": [
+        "files/kafka/ConversionConsumer.cpp",
+        "files/kafka/ImpressionConsumer.cpp",
+        "files/models/AdEvent.proto",
+        "files/models/AnalyticsBucket.cpp",
+        "files/streaming/MetricsBucketBuilder.cpp",
+        "files/streaming/AggregationCoordinator.cpp",
+        "files/services/AnalyticsQueryService.scala"
+      ],
+      "target_files": [
+        "files/kafka/ImpressionConsumer.cpp",
+        "files/models/AdEvent.proto",
+        "files/models/AnalyticsBucket.cpp",
+        "files/repositories/AnalyticsRepository.rs",
+        "files/repositories/CampaignRepository.rs",
+        "files/services/AnalyticsQueryService.scala",
+        "files/streaming/AggregationCoordinator.cpp",
+        "files/streaming/AnalyticsAggregationWorker.cpp",
+        "files/streaming/MetricsBucketBuilder.cpp"
+      ],
+      "matched_files": [
+        "files/kafka/ImpressionConsumer.cpp",
+        "files/models/AdEvent.proto",
+        "files/models/AnalyticsBucket.cpp",
+        "files/services/AnalyticsQueryService.scala",
+        "files/streaming/AggregationCoordinator.cpp",
+        "files/streaming/MetricsBucketBuilder.cpp"
+      ],
+      "extra_files": [
+        "files/kafka/ConversionConsumer.cpp"
+      ],
+      "missing_files": [
+        "files/repositories/AnalyticsRepository.rs",
+        "files/repositories/CampaignRepository.rs",
+        "files/streaming/AnalyticsAggregationWorker.cpp"
+      ],
+      "weighted_action_reward": 0.26666666666666666,
+      "weighted_file_reward": 0.15000000000000002
+    },
+    "reward_before_truncation_gate": 0.4166666666666667,
+    "completion_token_ids": [
+      1930,
+      13660,
+      7977,
+      512,
+      9837,
+      220,
+      26305,
+      8634,
+      16445,
+      7713,
+      345,
+      220,
+      28975,
+      7037,
+      36062,
+      669,
+      11019,
+      198,
+      2595,
+      98673,
+      11171,
+      512,
+      9837,
+      220,
+      3626,
+      14441,
+      22645,
+      14,
+      49337,
+      31068,
+      7356,
+      345,
+      220,
+      3626,
+      14441,
+      22645,
+      14,
+      26282,
+      11433,
+      31068,
+      7356,
+      345,
+      220,
+      3626,
+      20883,
+      14,
+      2654,
+      1585,
+      58422,
+      345,
+      220,
+      3626,
+      20883,
+      14,
+      61639,
+      37118,
+      7356,
+      345,
+      220,
+      3626,
+      88534,
+      287,
+      10482,
+      13776,
+      37118,
+      3377,
+      7356,
+      345,
+      220,
+      3626,
+      88534,
+      287,
+      14,
+      9219,
+      35542,
+      65404,
+      7356,
+      345,
+      220,
+      3626,
+      23054,
+      14,
+      61639,
+      2929,
+      1898,
+      65775,
+      198,
+      60,
+      128009
+    ]
+  },
+  {
+    "stage": "validation_episode_75",
+    "episode": null,
+    "epoch": null,
+    "scenario": "scenario_030",
+    "rollout": 1,
+    "metadata_path": "/kaggle/input/datasets/adityammantri/sogarl-code-data/SFT/SFT/SFT_Dataset/scenario_030/metadata.json",
+    "reference": "valid_attacks: [\"event_replay_authorization_abuse\", \"historical_grant_replay\", \"lease_epoch_bypass_via_replay\", \"obsolete_authorization_reuse\"]\nrelevant_files: [\"files/command_bus/LeaseCommandHandler.fs\", \"files/command_bus/ReservationCommandHandler.fs\", \"files/event_store/ReservationEventStore.rs\", \"files/messages/ReservationGranted.fbs\", \"files/models/LeaseEpoch.fs\", \"files/models/Reservation.fs\", \"files/orchestrators/UplinkScheduler.rs\", \"files/orchestrators/WindowAllocator.rs\", \"files/projections/ActiveReservationProjection.rs\", \"files/projections/LeaseEpochProjection.rs\", \"files/runtime/JetStreamConsumer.rs\"]",
+    "response": "valid_attacks: [\"lease_epoch_drift\", \"reservation_authorization_abuse\"]\nrelevant_files: [\"files/command_bus/LeaseCommandHandler.fs\", \"files/command_bus/ReservationCommandHandler.fs\", \"files/event_store/LeaseEventStore.rs\", \"files/orchestrators/UplinkScheduler.rs\", \"files/projections/ActiveReservationProjection.rs\", \"files/projections/LeaseEpochProjection.rs\"]",
+    "complete": true,
+    "prompt_tokens": 6374,
+    "completion_tokens": 86,
+    "generation_seconds": 18.365058421000867,
+    "context_mode": "full",
+    "source_token_coverage": 1.0,
+    "reward": 0.18366500443103267,
+    "format": 1.0,
+    "actions": 0.08252243200937907,
+    "files": 0.5882352941176471,
+    "action_parseable": true,
+    "file_parseable": true,
+    "format_error": null,
+    "extraction_errors": {},
+    "extraction": {
+      "warnings": [],
+      "actions": {
+        "value": [
+          "lease epoch drift",
+          "reservation authorization abuse"
+        ],
+        "parseable": true,
+        "error": null,
+        "keys": [
+          "valid_attacks"
+        ],
+        "style": "json_array",
+        "raw_values": [
+          "[\"lease_epoch_drift\", \"reservation_authorization_abuse\"]"
+        ]
+      },
+      "files": {
+        "value": [
+          "files/command_bus/LeaseCommandHandler.fs",
+          "files/command_bus/ReservationCommandHandler.fs",
+          "files/event_store/LeaseEventStore.rs",
+          "files/orchestrators/UplinkScheduler.rs",
+          "files/projections/ActiveReservationProjection.rs",
+          "files/projections/LeaseEpochProjection.rs"
+        ],
+        "parseable": true,
+        "error": null,
+        "keys": [
+          "relevant_files"
+        ],
+        "style": "json_array",
+        "raw_values": [
+          "[\"files/command_bus/LeaseCommandHandler.fs\", \"files/command_bus/ReservationCommandHandler.fs\", \"files/event_store/LeaseEventStore.rs\", \"files/orchestrators/UplinkScheduler.rs\", \"files/projections/ActiveReservationProjection.rs\", \"files/projections/LeaseEpochProjection.rs\"]"
+        ]
+      }
+    },
+    "output_format": "json_array/json_array",
+    "comparison": {
+      "predicted_actions": [
+        "lease epoch drift",
+        "reservation authorization abuse"
+      ],
+      "target_actions": [
+        "event replay authorization abuse",
+        "historical grant replay",
+        "lease epoch bypass via replay",
+        "obsolete authorization reuse"
+      ],
+      "action_status": "scored",
+      "file_status": "scored",
+      "action_matches": [
+        {
+          "predicted": "lease epoch drift",
+          "target": "lease epoch bypass via replay",
+          "kind": "semantic",
+          "cosine": 0.6990269422531128,
+          "credit": 0.2475672960281372
+        },
+        {
+          "predicted": "reservation authorization abuse",
+          "target": "event replay authorization abuse",
+          "kind": "semantic",
+          "cosine": 0.5139003992080688,
+          "credit": 0.0
+        }
+      ],
+      "unmatched_actions": [
+        "reservation authorization abuse"
+      ],
+      "missing_actions": [
+        "event replay authorization abuse",
+        "historical grant replay",
+        "obsolete authorization reuse"
+      ],
+      "predicted_files": [
+        "files/command_bus/LeaseCommandHandler.fs",
+        "files/command_bus/ReservationCommandHandler.fs",
+        "files/event_store/LeaseEventStore.rs",
+        "files/orchestrators/UplinkScheduler.rs",
+        "files/projections/ActiveReservationProjection.rs",
+        "files/projections/LeaseEpochProjection.rs"
+      ],
+      "target_files": [
+        "files/command_bus/LeaseCommandHandler.fs",
+        "files/command_bus/ReservationCommandHandler.fs",
+        "files/event_store/ReservationEventStore.rs",
+        "files/messages/ReservationGranted.fbs",
+        "files/models/LeaseEpoch.fs",
+        "files/models/Reservation.fs",
+        "files/orchestrators/UplinkScheduler.rs",
+        "files/orchestrators/WindowAllocator.rs",
+        "files/projections/ActiveReservationProjection.rs",
+        "files/projections/LeaseEpochProjection.rs",
+        "files/runtime/JetStreamConsumer.rs"
+      ],
+      "matched_files": [
+        "files/command_bus/LeaseCommandHandler.fs",
+        "files/command_bus/ReservationCommandHandler.fs",
+        "files/orchestrators/UplinkScheduler.rs",
+        "files/projections/ActiveReservationProjection.rs",
+        "files/projections/LeaseEpochProjection.rs"
+      ],
+      "extra_files": [
+        "files/event_store/LeaseEventStore.rs"
+      ],
+      "missing_files": [
+        "files/event_store/ReservationEventStore.rs",
+        "files/messages/ReservationGranted.fbs",
+        "files/models/LeaseEpoch.fs",
+        "files/models/Reservation.fs",
+        "files/orchestrators/WindowAllocator.rs",
+        "files/runtime/JetStreamConsumer.rs"
+      ],
+      "weighted_action_reward": 0.06601794560750326,
+      "weighted_file_reward": 0.11764705882352942
+    },
+    "reward_before_truncation_gate": 0.18366500443103267,
+    "completion_token_ids": [
+      1930,
+      13660,
+      7977,
+      25,
+      4482,
+      1655,
+      21339,
+      27778,
+      2130,
+      498,
+      330,
+      48784,
+      23790,
+      2065,
+      23734,
+      817,
+      7171,
+      98673,
+      11171,
+      25,
+      4482,
+      7346,
+      84305,
+      26492,
+      14,
+      2356,
+      521,
+      4153,
+      3126,
+      42455,
+      498,
+      330,
+      7346,
+      84305,
+      26492,
+      14,
+      56048,
+      4153,
+      3126,
+      42455,
+      498,
+      330,
+      7346,
+      41863,
+      15153,
+      14,
+      2356,
+      521,
+      1585,
+      6221,
+      26721,
+      498,
+      330,
+      7346,
+      5255,
+      331,
+      15462,
+      3046,
+      63110,
+      501,
+      771,
+      39978,
+      26721,
+      498,
+      330,
+      7346,
+      18493,
+      25593,
+      14,
+      5847,
+      56048,
+      47421,
+      26721,
+      498,
+      330,
+      7346,
+      18493,
+      25593,
+      14,
+      2356,
+      521,
+      45438,
+      47421,
+      26721,
+      1365,
+      128009
+    ]
+  },
+  {
+    "stage": "validation_episode_75",
+    "episode": null,
+    "epoch": null,
+    "scenario": "scenario_055",
+    "rollout": 1,
+    "metadata_path": "/kaggle/input/datasets/adityammantri/sogarl-code-data/SFT/SFT/SFT_Dataset/scenario_055/metadata.json",
+    "reference": "valid_attacks: [\"operational_template_identity_collapse\", \"secret_resolver_trust_confusion\", \"template_provenance_confusion\", \"template_provenance_secret_expansion_abuse\"]\nrelevant_files: [\"files/llm/LiteLLMGateway.py\", \"files/models/Operationalprompt.kt\", \"files/prompt/PromptBuilder.kt\", \"files/prompt/PromptCompiler.kt\", \"files/prompt/TemplateVariable.kt\", \"files/retrieval/ContextAssembler.py\", \"files/secrets/SecretResolver.cs\", \"files/secrets/VaultClient.cs\", \"files/security/PromptPolicy.kt\", \"files/templating/TemplateResolver.rs\", \"files/templating/VariableRegistry.rs\"]",
+    "response": "valid_attacks:\n- template_provenance_bypass\n- secret_variable_extraction\n\nrelevant_files:\n- files/prompt/PromptBuilder.kt\n- files/templating/TemplateResolver.rs\n- files/secrets/SecretResolver.cs\n- files/security/PromptPolicy.kt",
+    "complete": true,
+    "prompt_tokens": 8192,
+    "completion_tokens": 58,
+    "generation_seconds": 18.571853335000924,
+    "context_mode": "truncated",
+    "source_token_coverage": 0.2860886229418436,
+    "reward": 0.2453515752156576,
+    "format": 1.0,
+    "actions": 0.17335613568623862,
+    "files": 0.5333333333333333,
+    "action_parseable": true,
+    "file_parseable": true,
+    "format_error": null,
+    "extraction_errors": {},
+    "extraction": {
+      "warnings": [],
+      "actions": {
+        "value": [
+          "template provenance bypass",
+          "secret variable extraction"
+        ],
+        "parseable": true,
+        "error": null,
+        "keys": [
+          "valid_attacks"
+        ],
+        "style": "bullet_list",
+        "raw_values": [
+          "- template_provenance_bypass\n- secret_variable_extraction"
+        ]
+      },
+      "files": {
+        "value": [
+          "files/prompt/PromptBuilder.kt",
+          "files/templating/TemplateResolver.rs",
+          "files/secrets/SecretResolver.cs",
+          "files/security/PromptPolicy.kt"
+        ],
+        "parseable": true,
+        "error": null,
+        "keys": [
+          "relevant_files"
+        ],
+        "style": "bullet_list",
+        "raw_values": [
+          "- files/prompt/PromptBuilder.kt\n- files/templating/TemplateResolver.rs\n- files/secrets/SecretResolver.cs\n- files/security/PromptPolicy.kt"
+        ]
+      }
+    },
+    "output_format": "bullet_list/bullet_list",
+    "comparison": {
+      "predicted_actions": [
+        "template provenance bypass",
+        "secret variable extraction"
+      ],
+      "target_actions": [
+        "operational template identity collapse",
+        "secret resolver trust confusion",
+        "template provenance confusion",
+        "template provenance secret expansion abuse"
+      ],
+      "action_status": "scored",
+      "file_status": "scored",
+      "action_matches": [
+        {
+          "predicted": "secret variable extraction",
+          "target": "operational template identity collapse",
+          "kind": "semantic",
+          "cosine": 0.25984278321266174,
+          "credit": 0.0
+        },
+        {
+          "predicted": "template provenance bypass",
+          "target": "template provenance confusion",
+          "kind": "semantic",
+          "cosine": 0.8080273866653442,
+          "credit": 0.5200684070587158
+        }
+      ],
+      "unmatched_actions": [
+        "secret variable extraction"
+      ],
+      "missing_actions": [
+        "operational template identity collapse",
+        "secret resolver trust confusion",
+        "template provenance secret expansion abuse"
+      ],
+      "predicted_files": [
+        "files/prompt/PromptBuilder.kt",
+        "files/templating/TemplateResolver.rs",
+        "files/secrets/SecretResolver.cs",
+        "files/security/PromptPolicy.kt"
+      ],
+      "target_files": [
+        "files/llm/LiteLLMGateway.py",
+        "files/models/Operationalprompt.kt",
+        "files/prompt/PromptBuilder.kt",
+        "files/prompt/PromptCompiler.kt",
+        "files/prompt/TemplateVariable.kt",
+        "files/retrieval/ContextAssembler.py",
+        "files/secrets/SecretResolver.cs",
+        "files/secrets/VaultClient.cs",
+        "files/security/PromptPolicy.kt",
+        "files/templating/TemplateResolver.rs",
+        "files/templating/VariableRegistry.rs"
+      ],
+      "matched_files": [
+        "files/prompt/PromptBuilder.kt",
+        "files/secrets/SecretResolver.cs",
+        "files/security/PromptPolicy.kt",
+        "files/templating/TemplateResolver.rs"
+      ],
+      "extra_files": [],
+      "missing_files": [
+        "files/llm/LiteLLMGateway.py",
+        "files/models/Operationalprompt.kt",
+        "files/prompt/PromptCompiler.kt",
+        "files/prompt/TemplateVariable.kt",
+        "files/retrieval/ContextAssembler.py",
+        "files/secrets/VaultClient.cs",
+        "files/templating/VariableRegistry.rs"
+      ],
+      "weighted_action_reward": 0.1386849085489909,
+      "weighted_file_reward": 0.10666666666666667
+    },
+    "reward_before_truncation_gate": 0.2453515752156576,
+    "completion_token_ids": [
+      1930,
+      13660,
+      7977,
+      512,
+      12,
+      3896,
+      2602,
+      1055,
+      685,
+      890,
+      51011,
+      198,
+      12,
+      6367,
+      14977,
+      95942,
+      271,
+      98673,
+      11171,
+      512,
+      12,
+      3626,
+      4420,
+      15091,
+      16744,
+      15091,
+      3377,
+      5314,
+      83,
+      198,
+      12,
+      3626,
+      14,
+      75960,
+      1113,
+      14,
+      7423,
+      18689,
+      26721,
+      198,
+      12,
+      3626,
+      60687,
+      53810,
+      14,
+      20357,
+      18689,
+      19302,
+      198,
+      12,
+      3626,
+      72522,
+      16744,
+      15091,
+      14145,
+      5314,
+      83,
+      128009
+    ]
+  },
+  {
+    "stage": "validation_episode_75",
+    "episode": null,
+    "epoch": null,
+    "scenario": "scenario_065",
+    "rollout": 1,
+    "metadata_path": "/kaggle/input/datasets/adityammantri/sogarl-code-data/SFT/SFT/SFT_Dataset/scenario_065/metadata.json",
+    "reference": "valid_attacks: [\"certificate_issuance_lineage_drift\"]\nrelevant_files: [\"files/approval/IssuedWorkloadIdentity.cr\", \"files/directory/IdentityDirectory.jl\", \"files/distribution/IdentityPublisher.erl\", \"files/distribution/RuntimeIdentity.erl\", \"files/runtime/MTLSRuntime.nim\"]",
+    "response": "valid_attacks:\n[\n  certificate_forgery,\n  issuance_generation_drift,\n  policy_revocation_bypass,\n  workload_context_confusion\n]\n\nrelevant_files:\n[\n  files/distribution/RuntimeIdentity.erl,\n  files/broker/SessionDistributor.rkt,\n  files/directory/IdentityDirectory.jl,\n  files/distribution/IdentityPublisher.erl\n]",
+    "complete": true,
+    "prompt_tokens": 6508,
+    "completion_tokens": 77,
+    "generation_seconds": 17.833993415002624,
+    "context_mode": "full",
+    "source_token_coverage": 1.0,
+    "reward": 0.13333333333333333,
+    "format": 1.0,
+    "actions": 0.0,
+    "files": 0.6666666666666666,
+    "action_parseable": true,
+    "file_parseable": true,
+    "format_error": null,
+    "extraction_errors": {},
+    "extraction": {
+      "warnings": [],
+      "actions": {
+        "value": [
+          "certificate forgery",
+          "issuance generation drift",
+          "policy revocation bypass",
+          "workload context confusion"
+        ],
+        "parseable": true,
+        "error": null,
+        "keys": [
+          "valid_attacks"
+        ],
+        "style": "unquoted_array",
+        "raw_values": [
+          "[\n  certificate_forgery,\n  issuance_generation_drift,\n  policy_revocation_bypass,\n  workload_context_confusion\n]"
+        ]
+      },
+      "files": {
+        "value": [
+          "files/distribution/RuntimeIdentity.erl",
+          "files/broker/SessionDistributor.rkt",
+          "files/directory/IdentityDirectory.jl",
+          "files/distribution/IdentityPublisher.erl"
+        ],
+        "parseable": true,
+        "error": null,
+        "keys": [
+          "relevant_files"
+        ],
+        "style": "unquoted_array",
+        "raw_values": [
+          "[\n  files/distribution/RuntimeIdentity.erl,\n  files/broker/SessionDistributor.rkt,\n  files/directory/IdentityDirectory.jl,\n  files/distribution/IdentityPublisher.erl\n]"
+        ]
+      }
+    },
+    "output_format": "unquoted_array/unquoted_array",
+    "comparison": {
+      "predicted_actions": [
+        "certificate forgery",
+        "issuance generation drift",
+        "policy revocation bypass",
+        "workload context confusion"
+      ],
+      "target_actions": [
+        "certificate issuance lineage drift"
+      ],
+      "action_status": "scored",
+      "file_status": "scored",
+      "action_matches": [
+        {
+          "predicted": "certificate forgery",
+          "target": "certificate issuance lineage drift",
+          "kind": "semantic",
+          "cosine": 0.4717376232147217,
+          "credit": 0.0
+        }
+      ],
+      "unmatched_actions": [
+        "certificate forgery",
+        "issuance generation drift",
+        "policy revocation bypass",
+        "workload context confusion"
+      ],
+      "missing_actions": [
+        "certificate issuance lineage drift"
+      ],
+      "predicted_files": [
+        "files/distribution/RuntimeIdentity.erl",
+        "files/broker/SessionDistributor.rkt",
+        "files/directory/IdentityDirectory.jl",
+        "files/distribution/IdentityPublisher.erl"
+      ],
+      "target_files": [
+        "files/approval/IssuedWorkloadIdentity.cr",
+        "files/directory/IdentityDirectory.jl",
+        "files/distribution/IdentityPublisher.erl",
+        "files/distribution/RuntimeIdentity.erl",
+        "files/runtime/MTLSRuntime.nim"
+      ],
+      "matched_files": [
+        "files/directory/IdentityDirectory.jl",
+        "files/distribution/IdentityPublisher.erl",
+        "files/distribution/RuntimeIdentity.erl"
+      ],
+      "extra_files": [
+        "files/broker/SessionDistributor.rkt"
+      ],
+      "missing_files": [
+        "files/approval/IssuedWorkloadIdentity.cr",
+        "files/runtime/MTLSRuntime.nim"
+      ],
+      "weighted_action_reward": 0.0,
+      "weighted_file_reward": 0.13333333333333333
+    },
+    "reward_before_truncation_gate": 0.13333333333333333,
+    "completion_token_ids": [
+      1930,
+      13660,
+      7977,
+      512,
+      9837,
+      220,
+      16125,
+      766,
+      1813,
+      727,
+      345,
+      220,
+      67599,
+      65291,
+      27778,
+      2130,
+      345,
+      220,
+      4947,
+      39182,
+      2328,
+      890,
+      51011,
+      345,
+      220,
+      54696,
+      8634,
+      16445,
+      7713,
+      198,
+      2595,
+      98673,
+      11171,
+      512,
+      9837,
+      220,
+      3626,
+      3529,
+      13408,
+      83736,
+      19069,
+      97973,
+      75,
+      345,
+      220,
+      3626,
+      3554,
+      47085,
+      14,
+      5396,
+      35,
+      79488,
+      1783,
+      5964,
+      345,
+      220,
+      3626,
+      3529,
+      4863,
+      14,
+      19069,
+      9494,
+      1190,
+      75,
+      345,
+      220,
+      3626,
+      3529,
+      13408,
+      14,
+      19069,
+      35650,
+      97973,
+      75,
+      198,
+      60,
+      128009
+    ]
+  },
+  {
+    "stage": "validation_episode_75",
+    "episode": null,
+    "epoch": null,
+    "scenario": "scenario_070",
+    "rollout": 1,
+    "metadata_path": "/kaggle/input/datasets/adityammantri/sogarl-code-data/SFT/SFT/SFT_Dataset/scenario_070/metadata.json",
+    "reference": "valid_attacks: [\"Approved Snapshot Bypass\", \"Execution Snapshot Consistency Violation\", \"Planning Snapshot Selection Confusion\", \"Planning State Drift\"]\nrelevant_files: [\"files/orchestration/AgentScheduler.ex\", \"files/runtime/ExecutionContext.fs\", \"files/runtime/TaskRuntime.fs\", \"files/session/PlanningSession.cr\", \"files/snapshot/ExecutionSnapshot.zig\", \"files/snapshot/SnapshotCatalog.zig\", \"files/snapshot/SnapshotIntegrityChecker.ml\", \"files/snapshot/SnapshotResolver.ml\"]",
+    "response": "valid_attacks: [\"snapshot_selection_drift\", \"execution_snapshot_forgery\"]\nrelevant_files: [\"files/snapshot/SnapshotResolver.ml\", \"files/runtime/ExecutionContext.fs\", \"files/orchestration/AgentScheduler.ex\", \"files/runtime/TaskRuntime.fs\"]",
+    "complete": true,
+    "prompt_tokens": 7783,
+    "completion_tokens": 55,
+    "generation_seconds": 17.445337190998544,
+    "context_mode": "full",
+    "source_token_coverage": 1.0,
+    "reward": 0.20318600336710613,
+    "format": 1.0,
+    "actions": 0.08731583754221599,
+    "files": 0.6666666666666666,
+    "action_parseable": true,
+    "file_parseable": true,
+    "format_error": null,
+    "extraction_errors": {},
+    "extraction": {
+      "warnings": [],
+      "actions": {
+        "value": [
+          "snapshot selection drift",
+          "execution snapshot forgery"
+        ],
+        "parseable": true,
+        "error": null,
+        "keys": [
+          "valid_attacks"
+        ],
+        "style": "json_array",
+        "raw_values": [
+          "[\"snapshot_selection_drift\", \"execution_snapshot_forgery\"]"
+        ]
+      },
+      "files": {
+        "value": [
+          "files/snapshot/SnapshotResolver.ml",
+          "files/runtime/ExecutionContext.fs",
+          "files/orchestration/AgentScheduler.ex",
+          "files/runtime/TaskRuntime.fs"
+        ],
+        "parseable": true,
+        "error": null,
+        "keys": [
+          "relevant_files"
+        ],
+        "style": "json_array",
+        "raw_values": [
+          "[\"files/snapshot/SnapshotResolver.ml\", \"files/runtime/ExecutionContext.fs\", \"files/orchestration/AgentScheduler.ex\", \"files/runtime/TaskRuntime.fs\"]"
+        ]
+      }
+    },
+    "output_format": "json_array/json_array",
+    "comparison": {
+      "predicted_actions": [
+        "snapshot selection drift",
+        "execution snapshot forgery"
+      ],
+      "target_actions": [
+        "approved snapshot bypass",
+        "execution snapshot consistency violation",
+        "planning snapshot selection confusion",
+        "planning state drift"
+      ],
+      "action_status": "scored",
+      "file_status": "scored",
+      "action_matches": [
+        {
+          "predicted": "execution snapshot forgery",
+          "target": "execution snapshot consistency violation",
+          "kind": "semantic",
+          "cosine": 0.6286063194274902,
+          "credit": 0.07151573896408081
+        },
+        {
+          "predicted": "snapshot selection drift",
+          "target": "planning snapshot selection confusion",
+          "kind": "semantic",
+          "cosine": 0.6761727333068848,
+          "credit": 0.19043177366256714
+        }
+      ],
+      "unmatched_actions": [],
+      "missing_actions": [
+        "approved snapshot bypass",
+        "planning state drift"
+      ],
+      "predicted_files": [
+        "files/snapshot/SnapshotResolver.ml",
+        "files/runtime/ExecutionContext.fs",
+        "files/orchestration/AgentScheduler.ex",
+        "files/runtime/TaskRuntime.fs"
+      ],
+      "target_files": [
+        "files/orchestration/AgentScheduler.ex",
+        "files/runtime/ExecutionContext.fs",
+        "files/runtime/TaskRuntime.fs",
+        "files/session/PlanningSession.cr",
+        "files/snapshot/ExecutionSnapshot.zig",
+        "files/snapshot/SnapshotCatalog.zig",
+        "files/snapshot/SnapshotIntegrityChecker.ml",
+        "files/snapshot/SnapshotResolver.ml"
+      ],
+      "matched_files": [
+        "files/orchestration/AgentScheduler.ex",
+        "files/runtime/ExecutionContext.fs",
+        "files/runtime/TaskRuntime.fs",
+        "files/snapshot/SnapshotResolver.ml"
+      ],
+      "extra_files": [],
+      "missing_files": [
+        "files/session/PlanningSession.cr",
+        "files/snapshot/ExecutionSnapshot.zig",
+        "files/snapshot/SnapshotCatalog.zig",
+        "files/snapshot/SnapshotIntegrityChecker.ml"
+      ],
+      "weighted_action_reward": 0.0698526700337728,
+      "weighted_file_reward": 0.13333333333333333
+    },
+    "reward_before_truncation_gate": 0.20318600336710613,
+    "completion_token_ids": [
+      1930,
+      13660,
+      7977,
+      25,
+      4482,
+      36601,
+      24596,
+      27778,
+      2130,
+      498,
+      330,
+      53821,
+      54365,
+      766,
+      1813,
+      727,
+      7171,
+      98673,
+      11171,
+      25,
+      4482,
+      7346,
+      2754,
+      9797,
+      11628,
+      9797,
+      18689,
+      58509,
+      498,
+      330,
+      7346,
+      40398,
+      14,
+      61676,
+      42455,
+      498,
+      330,
+      7346,
+      5255,
+      27417,
+      2214,
+      14,
+      17230,
+      39978,
+      2272,
+      498,
+      330,
+      7346,
+      40398,
+      14,
+      6396,
+      15474,
+      42455,
+      1365,
+      128009
+    ]
+  },
+  {
+    "stage": "validation_episode_75",
+    "episode": null,
+    "epoch": null,
+    "scenario": "scenario_076",
+    "rollout": 1,
+    "metadata_path": "/kaggle/input/datasets/adityammantri/sogarl-code-data/SFT/SFT/SFT_Dataset/scenario_076/metadata.json",
+    "reference": "valid_attacks: [\"tool_approval_context_drift\"]\nrelevant_files: [\"files/approval/ApprovedToolInvocation.cs\", \"files/approval/ToolApprovalService.cs\", \"files/gateway/ToolExecutionGateway.kt\", \"files/projection/InvocationProjectionService.java\", \"files/projection/RuntimeToolInvocation.java\", \"files/registry/ToolRegistry.rs\"]",
+    "response": "valid_attacks: [\"tool_approval_bypass\", \"endpoint_selection_drift\", \"runtime_tool_provenance_bypass\"]\nrelevant_files: [\"files/planning/ToolInvocationPlan.ts\", \"files/approval/ToolApprovalService.cs\", \"files/projection/InvocationProjectionService.java\", \"files/gateway/ToolExecutionGateway.kt\", \"files/connectors/MCPConnector.go\"]",
+    "complete": true,
+    "prompt_tokens": 6902,
+    "completion_tokens": 80,
+    "generation_seconds": 18.999140795996937,
+    "context_mode": "full",
+    "source_token_coverage": 1.0,
+    "reward": 0.1542040553959933,
+    "format": 1.0,
+    "actions": 0.056391432881355286,
+    "files": 0.5454545454545454,
+    "action_parseable": true,
+    "file_parseable": true,
+    "format_error": null,
+    "extraction_errors": {},
+    "extraction": {
+      "warnings": [],
+      "actions": {
+        "value": [
+          "tool approval bypass",
+          "endpoint selection drift",
+          "runtime tool provenance bypass"
+        ],
+        "parseable": true,
+        "error": null,
+        "keys": [
+          "valid_attacks"
+        ],
+        "style": "json_array",
+        "raw_values": [
+          "[\"tool_approval_bypass\", \"endpoint_selection_drift\", \"runtime_tool_provenance_bypass\"]"
+        ]
+      },
+      "files": {
+        "value": [
+          "files/planning/ToolInvocationPlan.ts",
+          "files/approval/ToolApprovalService.cs",
+          "files/projection/InvocationProjectionService.java",
+          "files/gateway/ToolExecutionGateway.kt",
+          "files/connectors/MCPConnector.go"
+        ],
+        "parseable": true,
+        "error": null,
+        "keys": [
+          "relevant_files"
+        ],
+        "style": "json_array",
+        "raw_values": [
+          "[\"files/planning/ToolInvocationPlan.ts\", \"files/approval/ToolApprovalService.cs\", \"files/projection/InvocationProjectionService.java\", \"files/gateway/ToolExecutionGateway.kt\", \"files/connectors/MCPConnector.go\"]"
+        ]
+      }
+    },
+    "output_format": "json_array/json_array",
+    "comparison": {
+      "predicted_actions": [
+        "tool approval bypass",
+        "endpoint selection drift",
+        "runtime tool provenance bypass"
+      ],
+      "target_actions": [
+        "tool approval context drift"
+      ],
+      "action_status": "scored",
+      "file_status": "scored",
+      "action_matches": [
+        {
+          "predicted": "tool approval bypass",
+          "target": "tool approval context drift",
+          "kind": "semantic",
+          "cosine": 0.6451131701469421,
+          "credit": 0.11278286576271057
+        }
+      ],
+      "unmatched_actions": [
+        "endpoint selection drift",
+        "runtime tool provenance bypass"
+      ],
+      "missing_actions": [],
+      "predicted_files": [
+        "files/planning/ToolInvocationPlan.ts",
+        "files/approval/ToolApprovalService.cs",
+        "files/projection/InvocationProjectionService.java",
+        "files/gateway/ToolExecutionGateway.kt",
+        "files/connectors/MCPConnector.go"
+      ],
+      "target_files": [
+        "files/approval/ApprovedToolInvocation.cs",
+        "files/approval/ToolApprovalService.cs",
+        "files/gateway/ToolExecutionGateway.kt",
+        "files/projection/InvocationProjectionService.java",
+        "files/projection/RuntimeToolInvocation.java",
+        "files/registry/ToolRegistry.rs"
+      ],
+      "matched_files": [
+        "files/approval/ToolApprovalService.cs",
+        "files/gateway/ToolExecutionGateway.kt",
+        "files/projection/InvocationProjectionService.java"
+      ],
+      "extra_files": [
+        "files/connectors/MCPConnector.go",
+        "files/planning/ToolInvocationPlan.ts"
+      ],
+      "missing_files": [
+        "files/approval/ApprovedToolInvocation.cs",
+        "files/projection/RuntimeToolInvocation.java",
+        "files/registry/ToolRegistry.rs"
+      ],
+      "weighted_action_reward": 0.04511314630508423,
+      "weighted_file_reward": 0.10909090909090909
+    },
+    "reward_before_truncation_gate": 0.1542040553959933,
+    "completion_token_ids": [
+      1930,
+      13660,
+      7977,
+      25,
+      4482,
+      14506,
+      96713,
+      890,
+      51011,
+      498,
+      330,
+      33640,
+      24596,
+      27778,
+      2130,
+      498,
+      330,
+      23051,
+      23627,
+      2602,
+      1055,
+      685,
+      890,
+      51011,
+      7171,
+      98673,
+      11171,
+      25,
+      4482,
+      7346,
+      11505,
+      6073,
+      14,
+      7896,
+      38543,
+      21119,
+      21991,
+      498,
+      330,
+      7346,
+      10867,
+      299,
+      838,
+      14,
+      7896,
+      91207,
+      1898,
+      19302,
+      498,
+      330,
+      7346,
+      18493,
+      7761,
+      14,
+      38543,
+      47421,
+      1898,
+      11085,
+      498,
+      330,
+      7346,
+      4951,
+      12312,
+      14,
+      7896,
+      20912,
+      41809,
+      5314,
+      83,
+      498,
+      330,
+      7346,
+      79589,
+      1105,
+      10482,
+      7269,
+      37054,
+      18487,
+      1365,
+      128009
+    ]
+  },
+  {
+    "stage": "validation_episode_75",
+    "episode": null,
+    "epoch": null,
+    "scenario": "scenario_089",
+    "rollout": 1,
+    "metadata_path": "/kaggle/input/datasets/adityammantri/sogarl-code-data/SFT/SFT/SFT_Dataset/scenario_089/metadata.json",
+    "reference": "valid_attacks: [\"AI Agent Capability Identity Drift\", \"Capability Projection Drift\", \"Cross-Provider Tool Resolution Abuse\", \"Runtime Provider Resolution Confusion\"]\nrelevant_files: [\"files/backend/approval/PolicyApprovalService.java\", \"files/backend/capability/CapabilityProjectionService.rs\", \"files/backend/capability/CapabilityRepository.rs\", \"files/backend/capability/RuntimeCapability.cs\", \"files/backend/planner/ExecutionPlanner.py\", \"files/backend/runtime/ExecutionDispatcher.cpp\", \"files/backend/runtime/McpGateway.go\", \"files/backend/runtime/ProviderResolver.kt\", \"files/backend/scheduler/ExecutionScheduler.cs\"]",
+    "response": "valid_attacks: [\"capability_authorization_bypass\", \"provider_selection_drift\"]\nrelevant_files: [\"files/backend/capability/CapabilityProjectionService.rs\", \"files/backend/runtime/ProviderResolver.kt\", \"files/backend/runtime/ExecutionDispatcher.cpp\", \"files/backend/runtime/McpGateway.go\"]",
+    "complete": true,
+    "prompt_tokens": 8192,
+    "completion_tokens": 62,
+    "generation_seconds": 19.41762313700019,
+    "context_mode": "truncated",
+    "source_token_coverage": 0.6859964093357271,
+    "reward": 0.12307692307692308,
+    "format": 1.0,
+    "actions": 0.0,
+    "files": 0.6153846153846154,
+    "action_parseable": true,
+    "file_parseable": true,
+    "format_error": null,
+    "extraction_errors": {},
+    "extraction": {
+      "warnings": [],
+      "actions": {
+        "value": [
+          "capability authorization bypass",
+          "provider selection drift"
+        ],
+        "parseable": true,
+        "error": null,
+        "keys": [
+          "valid_attacks"
+        ],
+        "style": "json_array",
+        "raw_values": [
+          "[\"capability_authorization_bypass\", \"provider_selection_drift\"]"
+        ]
+      },
+      "files": {
+        "value": [
+          "files/backend/capability/CapabilityProjectionService.rs",
+          "files/backend/runtime/ProviderResolver.kt",
+          "files/backend/runtime/ExecutionDispatcher.cpp",
+          "files/backend/runtime/McpGateway.go"
+        ],
+        "parseable": true,
+        "error": null,
+        "keys": [
+          "relevant_files"
+        ],
+        "style": "json_array",
+        "raw_values": [
+          "[\"files/backend/capability/CapabilityProjectionService.rs\", \"files/backend/runtime/ProviderResolver.kt\", \"files/backend/runtime/ExecutionDispatcher.cpp\", \"files/backend/runtime/McpGateway.go\"]"
+        ]
+      }
+    },
+    "output_format": "json_array/json_array",
+    "comparison": {
+      "predicted_actions": [
+        "capability authorization bypass",
+        "provider selection drift"
+      ],
+      "target_actions": [
+        "ai agent capability identity drift",
+        "capability projection drift",
+        "cross provider tool resolution abuse",
+        "runtime provider resolution confusion"
+      ],
+      "action_status": "scored",
+      "file_status": "scored",
+      "action_matches": [
+        {
+          "predicted": "capability authorization bypass",
+          "target": "ai agent capability identity drift",
+          "kind": "semantic",
+          "cosine": 0.3316546678543091,
+          "credit": 0.0
+        },
+        {
+          "predicted": "provider selection drift",
+          "target": "capability projection drift",
+          "kind": "semantic",
+          "cosine": 0.3872634768486023,
+          "credit": 0.0
+        }
+      ],
+      "unmatched_actions": [
+        "capability authorization bypass",
+        "provider selection drift"
+      ],
+      "missing_actions": [
+        "ai agent capability identity drift",
+        "capability projection drift",
+        "cross provider tool resolution abuse",
+        "runtime provider resolution confusion"
+      ],
+      "predicted_files": [
+        "files/backend/capability/CapabilityProjectionService.rs",
+        "files/backend/runtime/ProviderResolver.kt",
+        "files/backend/runtime/ExecutionDispatcher.cpp",
+        "files/backend/runtime/McpGateway.go"
+      ],
+      "target_files": [
+        "files/backend/approval/PolicyApprovalService.java",
+        "files/backend/capability/CapabilityProjectionService.rs",
+        "files/backend/capability/CapabilityRepository.rs",
+        "files/backend/capability/RuntimeCapability.cs",
+        "files/backend/planner/ExecutionPlanner.py",
+        "files/backend/runtime/ExecutionDispatcher.cpp",
+        "files/backend/runtime/McpGateway.go",
+        "files/backend/runtime/ProviderResolver.kt",
+        "files/backend/scheduler/ExecutionScheduler.cs"
+      ],
+      "matched_files": [
+        "files/backend/capability/CapabilityProjectionService.rs",
+        "files/backend/runtime/ExecutionDispatcher.cpp",
+        "files/backend/runtime/McpGateway.go",
+        "files/backend/runtime/ProviderResolver.kt"
+      ],
+      "extra_files": [],
+      "missing_files": [
+        "files/backend/approval/PolicyApprovalService.java",
+        "files/backend/capability/CapabilityRepository.rs",
+        "files/backend/capability/RuntimeCapability.cs",
+        "files/backend/planner/ExecutionPlanner.py",
+        "files/backend/scheduler/ExecutionScheduler.cs"
+      ],
+      "weighted_action_reward": 0.0,
+      "weighted_file_reward": 0.12307692307692308
+    },
+    "reward_before_truncation_gate": 0.12307692307692308,
+    "completion_token_ids": [
+      1930,
+      13660,
+      7977,
+      25,
+      4482,
+      82351,
+      23790,
+      2065,
+      890,
+      51011,
+      498,
+      330,
+      20576,
+      24596,
+      27778,
+      2130,
+      7171,
+      98673,
+      11171,
+      25,
+      4482,
+      7346,
+      71120,
+      2971,
+      391,
+      2968,
+      11547,
+      391,
+      2968,
+      47421,
+      1898,
+      26721,
+      498,
+      330,
+      7346,
+      71120,
+      40398,
+      14,
+      5290,
+      18689,
+      5314,
+      83,
+      498,
+      330,
+      7346,
+      71120,
+      40398,
+      14,
+      20912,
+      22594,
+      7356,
+      498,
+      330,
+      7346,
+      71120,
+      40398,
+      10482,
+      4777,
+      41809,
+      18487,
+      1365,
+      128009
+    ]
+  },
+  {
+    "stage": "validation_episode_75",
+    "episode": null,
+    "epoch": null,
+    "scenario": "scenario_098",
+    "rollout": 1,
+    "metadata_path": "/kaggle/input/datasets/adityammantri/sogarl-code-data/SFT/SFT/SFT_Dataset/scenario_098/metadata.json",
+    "reference": "valid_attacks: [\"canonical_dataset_corruption\", \"canonical_lineage_drift\", \"classification_graph_merge\", \"cross_lineage_composition\", \"distributed_data_lineage_corruption\", \"distributed_lineage_corruption\", \"distributed_provenance_collapse\", \"graph_provenance_corruption\", \"historical_pipeline_drift\", \"lineage_identity_drift\", \"pipeline_continuity_collapse\", \"runtime_dataset_drift\", \"runtime_lineage_collapse\", \"runtime_provenance_drift\", \"snapshot_schema_drift\", \"transformation_classification_drift\", \"transformation_dataset_collision\", \"transformation_provenance_collapse\"]\nrelevant_files: [\"files/approval/ApprovedLineageRevision.fs\", \"files/classification/ClassificationAssembler.cpp\", \"files/classification/ClassificationNode.cpp\", \"files/convergence/LineageGraphComposer.swift\", \"files/convergence/RuntimeLineageGraph.swift\", \"files/identity/IdentityNode.rs\", \"files/identity/IdentityNodeBuilder.rs\", \"files/materialization/DatasetMaterializer.elm\", \"files/materialization/EnterpriseAnalyticsGateway.jl\", \"files/materialization/MaterializedDataset.elm\", \"files/quality/QualityNode.zig\", \"files/schema/SchemaNode.kt\", \"files/schema/SchemaResolver.kt\", \"files/snapshot/SnapshotNode.ml\", \"files/transformation/TransformationCatalog.scala\", \"files/transformation/TransformationNode.scala\"]",
+    "response": "valid_attacks: [\"lineage_drift\", \"materialization_lineage_confusion\"]\nrelevant_files: [\"files/convergence/RuntimeLineageGraph.swift\", \"files/materialization/DatasetMaterializer.elm\", \"files/materialization/EnterpriseAnalyticsGateway.jl\"]",
+    "complete": true,
+    "prompt_tokens": 8192,
+    "completion_tokens": 54,
+    "generation_seconds": 18.180217245997483,
+    "context_mode": "truncated",
+    "source_token_coverage": 0.6532923617208077,
+    "reward": 0.12308829081685921,
+    "format": 1.0,
+    "actions": 0.07491299510002136,
+    "files": 0.3157894736842105,
+    "action_parseable": true,
+    "file_parseable": true,
+    "format_error": null,
+    "extraction_errors": {},
+    "extraction": {
+      "warnings": [],
+      "actions": {
+        "value": [
+          "lineage drift",
+          "materialization lineage confusion"
+        ],
+        "parseable": true,
+        "error": null,
+        "keys": [
+          "valid_attacks"
+        ],
+        "style": "json_array",
+        "raw_values": [
+          "[\"lineage_drift\", \"materialization_lineage_confusion\"]"
+        ]
+      },
+      "files": {
+        "value": [
+          "files/convergence/RuntimeLineageGraph.swift",
+          "files/materialization/DatasetMaterializer.elm",
+          "files/materialization/EnterpriseAnalyticsGateway.jl"
+        ],
+        "parseable": true,
+        "error": null,
+        "keys": [
+          "relevant_files"
+        ],
+        "style": "json_array",
+        "raw_values": [
+          "[\"files/convergence/RuntimeLineageGraph.swift\", \"files/materialization/DatasetMaterializer.elm\", \"files/materialization/EnterpriseAnalyticsGateway.jl\"]"
+        ]
+      }
+    },
+    "output_format": "json_array/json_array",
+    "comparison": {
+      "predicted_actions": [
+        "lineage drift",
+        "materialization lineage confusion"
+      ],
+      "target_actions": [
+        "canonical dataset corruption",
+        "canonical lineage drift",
+        "classification graph merge",
+        "cross lineage composition",
+        "distributed data lineage corruption",
+        "distributed lineage corruption",
+        "distributed provenance collapse",
+        "graph provenance corruption",
+        "historical pipeline drift",
+        "lineage identity drift",
+        "pipeline continuity collapse",
+        "runtime dataset drift",
+        "runtime lineage collapse",
+        "runtime provenance drift",
+        "snapshot schema drift",
+        "transformation classification drift",
+        "transformation dataset collision",
+        "transformation provenance collapse"
+      ],
+      "action_status": "scored",
+      "file_status": "scored",
+      "action_matches": [
+        {
+          "predicted": "lineage drift",
+          "target": "lineage identity drift",
+          "kind": "semantic",
+          "cosine": 0.8996520042419434,
+          "credit": 0.7491299510002136
+        },
+        {
+          "predicted": "materialization lineage confusion",
+          "target": "canonical dataset corruption",
+          "kind": "semantic",
+          "cosine": 0.20194807648658752,
+          "credit": 0.0
+        }
+      ],
+      "unmatched_actions": [
+        "materialization lineage confusion"
+      ],
+      "missing_actions": [
+        "canonical dataset corruption",
+        "canonical lineage drift",
+        "classification graph merge",
+        "cross lineage composition",
+        "distributed data lineage corruption",
+        "distributed lineage corruption",
+        "distributed provenance collapse",
+        "graph provenance corruption",
+        "historical pipeline drift",
+        "pipeline continuity collapse",
+        "runtime dataset drift",
+        "runtime lineage collapse",
+        "runtime provenance drift",
+        "snapshot schema drift",
+        "transformation classification drift",
+        "transformation dataset collision",
+        "transformation provenance collapse"
+      ],
+      "predicted_files": [
+        "files/convergence/RuntimeLineageGraph.swift",
+        "files/materialization/DatasetMaterializer.elm",
+        "files/materialization/EnterpriseAnalyticsGateway.jl"
+      ],
+      "target_files": [
+        "files/approval/ApprovedLineageRevision.fs",
+        "files/classification/ClassificationAssembler.cpp",
+        "files/classification/ClassificationNode.cpp",
+        "files/convergence/LineageGraphComposer.swift",
+        "files/convergence/RuntimeLineageGraph.swift",
+        "files/identity/IdentityNode.rs",
+        "files/identity/IdentityNodeBuilder.rs",
+        "files/materialization/DatasetMaterializer.elm",
+        "files/materialization/EnterpriseAnalyticsGateway.jl",
+        "files/materialization/MaterializedDataset.elm",
+        "files/quality/QualityNode.zig",
+        "files/schema/SchemaNode.kt",
+        "files/schema/SchemaResolver.kt",
+        "files/snapshot/SnapshotNode.ml",
+        "files/transformation/TransformationCatalog.scala",
+        "files/transformation/TransformationNode.scala"
+      ],
+      "matched_files": [
+        "files/convergence/RuntimeLineageGraph.swift",
+        "files/materialization/DatasetMaterializer.elm",
+        "files/materialization/EnterpriseAnalyticsGateway.jl"
+      ],
+      "extra_files": [],
+      "missing_files": [
+        "files/approval/ApprovedLineageRevision.fs",
+        "files/classification/ClassificationAssembler.cpp",
+        "files/classification/ClassificationNode.cpp",
+        "files/convergence/LineageGraphComposer.swift",
+        "files/identity/IdentityNode.rs",
+        "files/identity/IdentityNodeBuilder.rs",
+        "files/materialization/MaterializedDataset.elm",
+        "files/quality/QualityNode.zig",
+        "files/schema/SchemaNode.kt",
+        "files/schema/SchemaResolver.kt",
+        "files/snapshot/SnapshotNode.ml",
+        "files/transformation/TransformationCatalog.scala",
+        "files/transformation/TransformationNode.scala"
+      ],
+      "weighted_action_reward": 0.059930396080017094,
+      "weighted_file_reward": 0.06315789473684211
+    },
+    "reward_before_truncation_gate": 0.12308829081685921,
+    "completion_token_ids": [
+      1930,
+      13660,
+      7977,
+      25,
+      4482,
+      1074,
+      425,
+      27778,
+      2130,
+      498,
+      330,
+      8407,
+      2065,
+      6665,
+      425,
+      16445,
+      7713,
+      7171,
+      98673,
+      11171,
+      25,
+      4482,
+      7346,
+      32336,
+      81848,
+      83736,
+      2519,
+      425,
+      11461,
+      13593,
+      498,
+      330,
+      7346,
+      15175,
+      2065,
+      15302,
+      8534,
+      13721,
+      3213,
+      16230,
+      76,
+      498,
+      330,
+      7346,
+      15175,
+      2065,
+      14,
+      86747,
+      61639,
+      41809,
+      1190,
+      75,
+      1365,
+      128009
+    ]
+  }
+]

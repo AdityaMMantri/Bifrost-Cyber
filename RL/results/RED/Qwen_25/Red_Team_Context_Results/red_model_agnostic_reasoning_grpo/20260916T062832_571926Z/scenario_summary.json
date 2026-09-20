@@ -1,0 +1,722 @@
+[
+  {
+    "scenario": "scenario_001",
+    "episodes": 1,
+    "mean_reward": 0.22400000000000003,
+    "mean_loss": -0.026620253920555115,
+    "updates": 1,
+    "context_mode": "full",
+    "source_token_coverage": 1.0
+  },
+  {
+    "scenario": "scenario_002",
+    "episodes": 1,
+    "mean_reward": 0.14933333333333335,
+    "mean_loss": -0.30138476751744747,
+    "updates": 1,
+    "context_mode": "full",
+    "source_token_coverage": 1.0
+  },
+  {
+    "scenario": "scenario_003",
+    "episodes": 1,
+    "mean_reward": 0.3680000000000001,
+    "mean_loss": 0.25461239367723465,
+    "updates": 1,
+    "context_mode": "full",
+    "source_token_coverage": 1.0
+  },
+  {
+    "scenario": "scenario_006",
+    "episodes": 1,
+    "mean_reward": 0.6857142857142857,
+    "mean_loss": 0.350928358733654,
+    "updates": 1,
+    "context_mode": "full",
+    "source_token_coverage": 1.0
+  },
+  {
+    "scenario": "scenario_007",
+    "episodes": 1,
+    "mean_reward": 0.3777777777777778,
+    "mean_loss": 0.030505821108818054,
+    "updates": 1,
+    "context_mode": "full",
+    "source_token_coverage": 1.0
+  },
+  {
+    "scenario": "scenario_008",
+    "episodes": 1,
+    "mean_reward": 0.8184615384615384,
+    "mean_loss": 0.17670575808733702,
+    "updates": 1,
+    "context_mode": "full",
+    "source_token_coverage": 1.0
+  },
+  {
+    "scenario": "scenario_009",
+    "episodes": 1,
+    "mean_reward": 0.5226666666666666,
+    "mean_loss": 0.5825512781739235,
+    "updates": 1,
+    "context_mode": "full",
+    "source_token_coverage": 1.0
+  },
+  {
+    "scenario": "scenario_010",
+    "episodes": 1,
+    "mean_reward": 0.808,
+    "mean_loss": -0.046969455666840076,
+    "updates": 1,
+    "context_mode": "full",
+    "source_token_coverage": 1.0
+  },
+  {
+    "scenario": "scenario_011",
+    "episodes": 1,
+    "mean_reward": 0.0,
+    "mean_loss": null,
+    "updates": 0,
+    "context_mode": "full",
+    "source_token_coverage": 1.0
+  },
+  {
+    "scenario": "scenario_013",
+    "episodes": 1,
+    "mean_reward": 0.41816450786590575,
+    "mean_loss": -0.12696213275194168,
+    "updates": 1,
+    "context_mode": "truncated",
+    "source_token_coverage": 0.5441346431667148
+  },
+  {
+    "scenario": "scenario_016",
+    "episodes": 1,
+    "mean_reward": 0.4158460367211016,
+    "mean_loss": -0.028917424380779266,
+    "updates": 1,
+    "context_mode": "truncated",
+    "source_token_coverage": 0.6111205432937181
+  },
+  {
+    "scenario": "scenario_017",
+    "episodes": 1,
+    "mean_reward": 0.32837306298149954,
+    "mean_loss": 0.12563598901033401,
+    "updates": 1,
+    "context_mode": "full",
+    "source_token_coverage": 1.0
+  },
+  {
+    "scenario": "scenario_019",
+    "episodes": 1,
+    "mean_reward": 0.041212121212121214,
+    "mean_loss": -0.41488534212112427,
+    "updates": 1,
+    "context_mode": "full",
+    "source_token_coverage": 1.0
+  },
+  {
+    "scenario": "scenario_020",
+    "episodes": 1,
+    "mean_reward": 0.15929189273289274,
+    "mean_loss": 0.1701926626265049,
+    "updates": 1,
+    "context_mode": "full",
+    "source_token_coverage": 1.0
+  },
+  {
+    "scenario": "scenario_021",
+    "episodes": 1,
+    "mean_reward": 0.12534924745559692,
+    "mean_loss": -0.02634064108133316,
+    "updates": 1,
+    "context_mode": "full",
+    "source_token_coverage": 1.0
+  },
+  {
+    "scenario": "scenario_022",
+    "episodes": 1,
+    "mean_reward": 0.26,
+    "mean_loss": -0.2712116688489914,
+    "updates": 1,
+    "context_mode": "full",
+    "source_token_coverage": 1.0
+  },
+  {
+    "scenario": "scenario_023",
+    "episodes": 1,
+    "mean_reward": 0.17681046940031506,
+    "mean_loss": -0.22164995968341827,
+    "updates": 1,
+    "context_mode": "full",
+    "source_token_coverage": 1.0
+  },
+  {
+    "scenario": "scenario_024",
+    "episodes": 1,
+    "mean_reward": 0.43179487179487175,
+    "mean_loss": -0.20403485000133514,
+    "updates": 1,
+    "context_mode": "full",
+    "source_token_coverage": 1.0
+  },
+  {
+    "scenario": "scenario_025",
+    "episodes": 1,
+    "mean_reward": 0.20027966022491456,
+    "mean_loss": -0.01852906367275864,
+    "updates": 1,
+    "context_mode": "full",
+    "source_token_coverage": 1.0
+  },
+  {
+    "scenario": "scenario_026",
+    "episodes": 1,
+    "mean_reward": 0.014545454545454547,
+    "mean_loss": -0.061645135283470154,
+    "updates": 1,
+    "context_mode": "full",
+    "source_token_coverage": 1.0
+  },
+  {
+    "scenario": "scenario_027",
+    "episodes": 1,
+    "mean_reward": 0.1367478828430176,
+    "mean_loss": 0.035856038331985474,
+    "updates": 1,
+    "context_mode": "full",
+    "source_token_coverage": 1.0
+  },
+  {
+    "scenario": "scenario_031",
+    "episodes": 1,
+    "mean_reward": 0.3081251141684397,
+    "mean_loss": -0.13483447022736073,
+    "updates": 1,
+    "context_mode": "full",
+    "source_token_coverage": 1.0
+  },
+  {
+    "scenario": "scenario_033",
+    "episodes": 1,
+    "mean_reward": 0.17800000000000002,
+    "mean_loss": 0.13153094798326492,
+    "updates": 1,
+    "context_mode": "full",
+    "source_token_coverage": 1.0
+  },
+  {
+    "scenario": "scenario_034",
+    "episodes": 1,
+    "mean_reward": 0.09466237722124374,
+    "mean_loss": 0.07475634291768074,
+    "updates": 1,
+    "context_mode": "truncated",
+    "source_token_coverage": 0.9814986123959297
+  },
+  {
+    "scenario": "scenario_035",
+    "episodes": 1,
+    "mean_reward": 0.28289695013962785,
+    "mean_loss": 0.1529121771454811,
+    "updates": 1,
+    "context_mode": "full",
+    "source_token_coverage": 1.0
+  },
+  {
+    "scenario": "scenario_037",
+    "episodes": 1,
+    "mean_reward": 0.06790470653110081,
+    "mean_loss": -0.2517390251159668,
+    "updates": 1,
+    "context_mode": "truncated",
+    "source_token_coverage": 0.7376595113265407
+  },
+  {
+    "scenario": "scenario_038",
+    "episodes": 1,
+    "mean_reward": 0.3090701268899321,
+    "mean_loss": -0.0686720535159111,
+    "updates": 1,
+    "context_mode": "full",
+    "source_token_coverage": 1.0
+  },
+  {
+    "scenario": "scenario_039",
+    "episodes": 1,
+    "mean_reward": 0.06000000000000001,
+    "mean_loss": -0.10818492621183395,
+    "updates": 1,
+    "context_mode": "full",
+    "source_token_coverage": 1.0
+  },
+  {
+    "scenario": "scenario_040",
+    "episodes": 1,
+    "mean_reward": 0.0544430698756299,
+    "mean_loss": -0.515856159850955,
+    "updates": 1,
+    "context_mode": "truncated",
+    "source_token_coverage": 0.6004730060349046
+  },
+  {
+    "scenario": "scenario_041",
+    "episodes": 1,
+    "mean_reward": 0.02512516975402832,
+    "mean_loss": -0.18068068474531174,
+    "updates": 1,
+    "context_mode": "truncated",
+    "source_token_coverage": 0.7388812018185412
+  },
+  {
+    "scenario": "scenario_042",
+    "episodes": 1,
+    "mean_reward": 0.02303921568627451,
+    "mean_loss": -0.007752896752208471,
+    "updates": 1,
+    "context_mode": "truncated",
+    "source_token_coverage": 0.7191923191131347
+  },
+  {
+    "scenario": "scenario_043",
+    "episodes": 1,
+    "mean_reward": 0.04105263157894737,
+    "mean_loss": -0.2129177376627922,
+    "updates": 1,
+    "context_mode": "truncated",
+    "source_token_coverage": 0.7986706689536878
+  },
+  {
+    "scenario": "scenario_044",
+    "episodes": 1,
+    "mean_reward": 0.03620114326477051,
+    "mean_loss": 0.10383397340774536,
+    "updates": 1,
+    "context_mode": "truncated",
+    "source_token_coverage": 0.8009509401339961
+  },
+  {
+    "scenario": "scenario_045",
+    "episodes": 1,
+    "mean_reward": 0.2655311346054077,
+    "mean_loss": 0.27507332619279623,
+    "updates": 1,
+    "context_mode": "truncated",
+    "source_token_coverage": 0.709204612077389
+  },
+  {
+    "scenario": "scenario_046",
+    "episodes": 1,
+    "mean_reward": 0.27871989111466844,
+    "mean_loss": 0.12021905183792114,
+    "updates": 1,
+    "context_mode": "full",
+    "source_token_coverage": 1.0
+  },
+  {
+    "scenario": "scenario_047",
+    "episodes": 1,
+    "mean_reward": 0.3625694442173792,
+    "mean_loss": -0.10731679946184158,
+    "updates": 1,
+    "context_mode": "full",
+    "source_token_coverage": 1.0
+  },
+  {
+    "scenario": "scenario_048",
+    "episodes": 1,
+    "mean_reward": 0.08742884893610021,
+    "mean_loss": 0.07043634727597237,
+    "updates": 1,
+    "context_mode": "full",
+    "source_token_coverage": 1.0
+  },
+  {
+    "scenario": "scenario_049",
+    "episodes": 1,
+    "mean_reward": 0.07731372833251952,
+    "mean_loss": 0.07208158820867538,
+    "updates": 1,
+    "context_mode": "full",
+    "source_token_coverage": 1.0
+  },
+  {
+    "scenario": "scenario_050",
+    "episodes": 1,
+    "mean_reward": 0.036000000000000004,
+    "mean_loss": -0.05918973684310913,
+    "updates": 1,
+    "context_mode": "truncated",
+    "source_token_coverage": 0.5476579925650558
+  },
+  {
+    "scenario": "scenario_051",
+    "episodes": 1,
+    "mean_reward": 0.12392383628421359,
+    "mean_loss": -0.1788255274295807,
+    "updates": 1,
+    "context_mode": "full",
+    "source_token_coverage": 1.0
+  },
+  {
+    "scenario": "scenario_052",
+    "episodes": 1,
+    "mean_reward": 0.3345454545454546,
+    "mean_loss": 0.020525239408016205,
+    "updates": 1,
+    "context_mode": "full",
+    "source_token_coverage": 1.0
+  },
+  {
+    "scenario": "scenario_053",
+    "episodes": 1,
+    "mean_reward": 0.37070707070707076,
+    "mean_loss": -0.06631157547235489,
+    "updates": 1,
+    "context_mode": "truncated",
+    "source_token_coverage": 0.855002305209774
+  },
+  {
+    "scenario": "scenario_054",
+    "episodes": 1,
+    "mean_reward": 0.29746771176656084,
+    "mean_loss": 0.40362803265452385,
+    "updates": 1,
+    "context_mode": "truncated",
+    "source_token_coverage": 0.9407574053243345
+  },
+  {
+    "scenario": "scenario_056",
+    "episodes": 1,
+    "mean_reward": 0.30933333333333335,
+    "mean_loss": 0.13416373543441296,
+    "updates": 1,
+    "context_mode": "full",
+    "source_token_coverage": 1.0
+  },
+  {
+    "scenario": "scenario_057",
+    "episodes": 1,
+    "mean_reward": 0.6566666666666667,
+    "mean_loss": -0.2374289259314537,
+    "updates": 1,
+    "context_mode": "truncated",
+    "source_token_coverage": 0.7245976103485732
+  },
+  {
+    "scenario": "scenario_058",
+    "episodes": 1,
+    "mean_reward": 0.8177777777777779,
+    "mean_loss": 0.022709976881742477,
+    "updates": 1,
+    "context_mode": "truncated",
+    "source_token_coverage": 0.9936691810344828
+  },
+  {
+    "scenario": "scenario_059",
+    "episodes": 1,
+    "mean_reward": 0.34,
+    "mean_loss": 0.31386467069387436,
+    "updates": 1,
+    "context_mode": "full",
+    "source_token_coverage": 1.0
+  },
+  {
+    "scenario": "scenario_060",
+    "episodes": 1,
+    "mean_reward": 0.82,
+    "mean_loss": -0.0517134852707386,
+    "updates": 1,
+    "context_mode": "truncated",
+    "source_token_coverage": 0.8508593396653098
+  },
+  {
+    "scenario": "scenario_061",
+    "episodes": 1,
+    "mean_reward": 0.16,
+    "mean_loss": -0.01916314661502838,
+    "updates": 1,
+    "context_mode": "truncated",
+    "source_token_coverage": 0.8879800853485064
+  },
+  {
+    "scenario": "scenario_062",
+    "episodes": 1,
+    "mean_reward": 0.0,
+    "mean_loss": null,
+    "updates": 0,
+    "context_mode": "full",
+    "source_token_coverage": 1.0
+  },
+  {
+    "scenario": "scenario_063",
+    "episodes": 1,
+    "mean_reward": 0.016000000000000004,
+    "mean_loss": 0.06496324203908443,
+    "updates": 1,
+    "context_mode": "full",
+    "source_token_coverage": 1.0
+  },
+  {
+    "scenario": "scenario_064",
+    "episodes": 1,
+    "mean_reward": 0.19142857142857145,
+    "mean_loss": -0.3342203199863434,
+    "updates": 1,
+    "context_mode": "full",
+    "source_token_coverage": 1.0
+  },
+  {
+    "scenario": "scenario_066",
+    "episodes": 1,
+    "mean_reward": 0.22482307910919191,
+    "mean_loss": 0.23722810111939907,
+    "updates": 1,
+    "context_mode": "truncated",
+    "source_token_coverage": 0.9048247719635142
+  },
+  {
+    "scenario": "scenario_067",
+    "episodes": 1,
+    "mean_reward": 0.18277011871337892,
+    "mean_loss": 0.068719033151865,
+    "updates": 1,
+    "context_mode": "truncated",
+    "source_token_coverage": 0.6207298783536077
+  },
+  {
+    "scenario": "scenario_068",
+    "episodes": 1,
+    "mean_reward": 0.6056804924919492,
+    "mean_loss": -0.09865044988691807,
+    "updates": 1,
+    "context_mode": "full",
+    "source_token_coverage": 1.0
+  },
+  {
+    "scenario": "scenario_069",
+    "episodes": 1,
+    "mean_reward": 0.0039440631866455075,
+    "mean_loss": 0.01466921716928482,
+    "updates": 1,
+    "context_mode": "truncated",
+    "source_token_coverage": 0.7787317678700735
+  },
+  {
+    "scenario": "scenario_071",
+    "episodes": 1,
+    "mean_reward": 0.017777777777777778,
+    "mean_loss": 0.1608278453350067,
+    "updates": 1,
+    "context_mode": "truncated",
+    "source_token_coverage": 0.9077106993424985
+  },
+  {
+    "scenario": "scenario_072",
+    "episodes": 1,
+    "mean_reward": 0.10318614211449258,
+    "mean_loss": 0.4528909847140312,
+    "updates": 1,
+    "context_mode": "truncated",
+    "source_token_coverage": 0.826195924594094
+  },
+  {
+    "scenario": "scenario_073",
+    "episodes": 1,
+    "mean_reward": 0.0,
+    "mean_loss": null,
+    "updates": 0,
+    "context_mode": "truncated",
+    "source_token_coverage": 0.8569318181818182
+  },
+  {
+    "scenario": "scenario_074",
+    "episodes": 1,
+    "mean_reward": 0.15019816371372768,
+    "mean_loss": -0.29103120509535074,
+    "updates": 1,
+    "context_mode": "full",
+    "source_token_coverage": 1.0
+  },
+  {
+    "scenario": "scenario_075",
+    "episodes": 1,
+    "mean_reward": 0.15768234549628363,
+    "mean_loss": -0.0003924686461687088,
+    "updates": 1,
+    "context_mode": "full",
+    "source_token_coverage": 1.0
+  },
+  {
+    "scenario": "scenario_077",
+    "episodes": 1,
+    "mean_reward": 0.3188503458042338,
+    "mean_loss": -0.17307496070861816,
+    "updates": 1,
+    "context_mode": "full",
+    "source_token_coverage": 1.0
+  },
+  {
+    "scenario": "scenario_078",
+    "episodes": 1,
+    "mean_reward": 0.2511847509656634,
+    "mean_loss": 0.2398161180317402,
+    "updates": 1,
+    "context_mode": "full",
+    "source_token_coverage": 1.0
+  },
+  {
+    "scenario": "scenario_079",
+    "episodes": 1,
+    "mean_reward": 0.5,
+    "mean_loss": 0.36054905131459236,
+    "updates": 1,
+    "context_mode": "full",
+    "source_token_coverage": 1.0
+  },
+  {
+    "scenario": "scenario_080",
+    "episodes": 1,
+    "mean_reward": 0.062478351698981395,
+    "mean_loss": -0.08001801650971174,
+    "updates": 1,
+    "context_mode": "full",
+    "source_token_coverage": 1.0
+  },
+  {
+    "scenario": "scenario_081",
+    "episodes": 1,
+    "mean_reward": 0.21506991147994997,
+    "mean_loss": 0.2690341044217348,
+    "updates": 1,
+    "context_mode": "full",
+    "source_token_coverage": 1.0
+  },
+  {
+    "scenario": "scenario_083",
+    "episodes": 1,
+    "mean_reward": 0.017142857142857144,
+    "mean_loss": 0.0787779651582241,
+    "updates": 1,
+    "context_mode": "truncated",
+    "source_token_coverage": 0.8575960122351874
+  },
+  {
+    "scenario": "scenario_084",
+    "episodes": 1,
+    "mean_reward": 0.14979112148284912,
+    "mean_loss": 0.05936908721923828,
+    "updates": 1,
+    "context_mode": "full",
+    "source_token_coverage": 1.0
+  },
+  {
+    "scenario": "scenario_085",
+    "episodes": 1,
+    "mean_reward": 0.07050894148387607,
+    "mean_loss": -0.24911101907491684,
+    "updates": 1,
+    "context_mode": "truncated",
+    "source_token_coverage": 0.809930592632141
+  },
+  {
+    "scenario": "scenario_086",
+    "episodes": 1,
+    "mean_reward": 0.8099999999999999,
+    "mean_loss": 0.01230013370513916,
+    "updates": 1,
+    "context_mode": "full",
+    "source_token_coverage": 1.0
+  },
+  {
+    "scenario": "scenario_088",
+    "episodes": 1,
+    "mean_reward": 0.1848826789855957,
+    "mean_loss": 0.36399461328983307,
+    "updates": 1,
+    "context_mode": "truncated",
+    "source_token_coverage": 0.7972626176218991
+  },
+  {
+    "scenario": "scenario_090",
+    "episodes": 1,
+    "mean_reward": 0.05505789142184788,
+    "mean_loss": 0.0917617455124855,
+    "updates": 1,
+    "context_mode": "full",
+    "source_token_coverage": 1.0
+  },
+  {
+    "scenario": "scenario_091",
+    "episodes": 1,
+    "mean_reward": 0.0,
+    "mean_loss": null,
+    "updates": 0,
+    "context_mode": "truncated",
+    "source_token_coverage": 0.6481402308678923
+  },
+  {
+    "scenario": "scenario_092",
+    "episodes": 1,
+    "mean_reward": 0.016000000000000004,
+    "mean_loss": -0.1115659736096859,
+    "updates": 1,
+    "context_mode": "full",
+    "source_token_coverage": 1.0
+  },
+  {
+    "scenario": "scenario_093",
+    "episodes": 1,
+    "mean_reward": 0.05648484848484849,
+    "mean_loss": 0.06521384045481682,
+    "updates": 1,
+    "context_mode": "truncated",
+    "source_token_coverage": 0.6060904539111878
+  },
+  {
+    "scenario": "scenario_094",
+    "episodes": 1,
+    "mean_reward": 0.10428543090820312,
+    "mean_loss": 0.04589306563138962,
+    "updates": 1,
+    "context_mode": "full",
+    "source_token_coverage": 1.0
+  },
+  {
+    "scenario": "scenario_096",
+    "episodes": 1,
+    "mean_reward": 0.06866820355813788,
+    "mean_loss": 0.060452161356806755,
+    "updates": 1,
+    "context_mode": "truncated",
+    "source_token_coverage": 0.7977945074753473
+  },
+  {
+    "scenario": "scenario_097",
+    "episodes": 1,
+    "mean_reward": 0.056966417411017045,
+    "mean_loss": -0.2586787167820148,
+    "updates": 1,
+    "context_mode": "truncated",
+    "source_token_coverage": 0.640770024063252
+  },
+  {
+    "scenario": "scenario_099",
+    "episodes": 1,
+    "mean_reward": 0.03293010234832764,
+    "mean_loss": 0.13448448129929602,
+    "updates": 1,
+    "context_mode": "full",
+    "source_token_coverage": 1.0
+  },
+  {
+    "scenario": "scenario_100",
+    "episodes": 1,
+    "mean_reward": 0.0884927260875702,
+    "mean_loss": -0.07943722512573004,
+    "updates": 1,
+    "context_mode": "truncated",
+    "source_token_coverage": 0.724881329113924
+  }
+]
