@@ -1,0 +1,29 @@
+{
+  "role": "red",
+  "scenario_min": 1,
+  "scenario_max": 100,
+  "base_model": "unsloth/qwen2.5-7b-instruct-unsloth-bnb-4bit",
+  "adapter": "/kaggle/input/datasets/adityammantri/kaggle-sogarl-models-qwen/LoRa/Red_lora/Qwen/results/outputs/lora_adapter",
+  "rollouts": 5,
+  "epochs": 1,
+  "seed": 42,
+  "embedding_model": "sentence-transformers/all-MiniLM-L6-v2",
+  "cosine_floor": 0.6,
+  "reward_weights": [
+    0.8,
+    0.2
+  ],
+  "max_prompt_tokens": 8192,
+  "max_new_tokens": 768,
+  "learning_rate": 5e-06,
+  "kl_beta": 0.02,
+  "clip_epsilon": 0.2,
+  "adv_std_floor": 0.05,
+  "path_matching": "unique_inventory_v1",
+  "parser_version": "role_fields_v4",
+  "reasoning_enabled": true,
+  "trial_mode": false,
+  "print_rollouts": true,
+  "print_prompts": true,
+  "log_token_details": true
+}

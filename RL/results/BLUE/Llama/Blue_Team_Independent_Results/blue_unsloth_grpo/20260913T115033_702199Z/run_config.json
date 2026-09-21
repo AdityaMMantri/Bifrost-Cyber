@@ -1,0 +1,25 @@
+{
+  "role": "blue",
+  "scenario_min": 1,
+  "scenario_max": 100,
+  "base_model": "unsloth/meta-llama-3.1-8b-instruct-unsloth-bnb-4bit",
+  "adapter": "/kaggle/input/datasets/adityammantri/sogarl-kaggle-models/LoRa/Blue_lora/Llama/results/outputs/lora_adapter",
+  "rollouts": 5,
+  "epochs": 1,
+  "seed": 42,
+  "embedding_model": "sentence-transformers/all-MiniLM-L6-v2",
+  "cosine_floor": 0.6,
+  "reward_weights": [
+    0.8,
+    0.2
+  ],
+  "max_prompt_tokens": 8192,
+  "max_new_tokens": 384,
+  "learning_rate": 5e-06,
+  "kl_beta": 0.02,
+  "clip_epsilon": 0.2,
+  "parser_version": "independent_components_v4",
+  "print_rollouts": true,
+  "print_prompts": true,
+  "log_token_details": true
+}
